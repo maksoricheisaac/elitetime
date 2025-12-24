@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  email              String?             @unique
+  username           String              @unique
+  role               UserRole            @default(employee)
+  department         String?
+  position           String?
+  avatar             String?
+  status             UserStatus          @default(active)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  firstname          String?
+  lastname           String?
+  absences           Absence[]
+  activityLogs       ActivityLog[]
+  correctionRequests CorrectionRequest[]
+  pointages          Pointage[]
+  sessions           Session[]
+}
+
+model Pointage {
+  id                 String              @id @default(cuid())
+  userId             String
+  date               DateTime
+  entryTime          String?
+  exitTime           String?
+  duration           Int
+  status             PointageStatus
+  isActive           Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  correctionRequests CorrectionRequest[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Absence {
+  id        String        @id @default(cuid())
+  userId    String
+  type      AbsenceType
+  startDate DateTime
+  endDate   DateTime
+  reason    String
+  status    AbsenceStatus
+  comment   String?
+  createdAt DateTime      @default(now())
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model CorrectionRequest {
+  id            String           @id @default(cuid())
+  userId        String
+  pointageId    String
+  requestDate   DateTime
+  originalEntry String?
+  originalExit  String?
+  newEntry      String
+  newExit       String
+  reason        String
+  status        CorrectionStatus
+  createdAt     DateTime         @default(now())
+  pointage      Pointage         @relation(fields: [pointageId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ActivityLog {
+  id        String       @id @default(cuid())
+  userId    String
+  action    String
+  details   String
+  timestamp DateTime     @default(now())
+  type      ActivityType
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemSettings {
+  id                        Int      @id @default(1)
+  workStartTime             String
+  workEndTime               String
+  maxSessionEndTime         String   @default("20:00")
+  breakDuration             Int
+  overtimeThreshold         Int
+  holidays                  Json
+  updatedAt                 DateTime @updatedAt
+  emailNotificationsEnabled Boolean  @default(true)
+  lateAlertsEnabled         Boolean  @default(true)
+  notificationsEnabled      Boolean  @default(true)
+  pointageRemindersEnabled  Boolean  @default(true)
+}
+
+model Department {
+  id          String     @id @default(cuid())
+  name        String     @unique
+  description String?
+  positions   Position[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("Department")
+}
+
+model Position {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([name, departmentId])
+  @@map("Position")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  sessionToken String   @unique
+  ipAddress    String?
+  userAgent    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum UserRole {
+  employee
+  manager
+  admin
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum PointageStatus {
+  normal
+  late
+  incomplete
+}
+
+enum AbsenceType {
+  conge
+  maladie
+  autre
+}
+
+enum AbsenceStatus {
+  pending
+  approved
+  rejected
+}
+
+enum CorrectionStatus {
+  pending
+  approved
+  rejected
+}
+
+enum ActivityType {
+  auth
+  pointage
+  absence
+  user
+  validation
+}
