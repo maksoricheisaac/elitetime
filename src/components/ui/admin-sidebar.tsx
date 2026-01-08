@@ -101,7 +101,7 @@ export const AdminSidebar = memo(() => {
 
   
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="bg-white">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -140,9 +140,9 @@ export const AdminSidebar = memo(() => {
                         asChild
                         isActive={isActive}
                         className={
-                          `transition-all duration-200 ease-out hover:translate-x-0.5 rounded-lg px-3 py-2.5 ` +
+                          `transition-all duration-200 ease-out hover:translate-x-0.5 rounded-lg px-3 py-2.5 text-bleu-500 ` +
                           (isActive
-                            ? 'border-l-4 border-primary/80 bg-primary/10 text-primary shadow-md'
+                            ? 'border-l-4 border-primary/80 bg-primary/10 text-blue-500 shadow-md'
                             : 'text-muted-foreground hover:bg-sidebar-accent/60')
                         }
                       >
@@ -150,7 +150,7 @@ export const AdminSidebar = memo(() => {
                           prefetch={false} 
                           href={mi.to}
                           aria-current={isActive ? 'page' : undefined}
-                          className="flex w-full items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0"
+                          className="flex w-full items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 text-blue-500"
                         >
                           <span
                             className={
@@ -159,8 +159,8 @@ export const AdminSidebar = memo(() => {
                                 : 'h-1.5 w-1.5 rounded-full bg-transparent transition-colors group-data-[collapsible=icon]:hidden'
                             }
                           />
-                          <Icon className="h-4 w-4 flex-shrink-0" />
-                          <span className="truncate group-data-[collapsible=icon]:hidden">
+                          <Icon className="h-4 w-4 shrink-0 text-blue-500" />
+                          <span className="truncate group-data-[collapsible=icon]:hidden text-blue-500">
                             {mi.label}
                           </span>
                         </Link>

@@ -1,6 +1,7 @@
+
+import { encryptAndSave } from "./src/lib/crypto";
 import fs from "fs";
 import path from "path";
-import { encryptAndSave } from "./src/lib/crypto.ts";
 
 const envPath = path.resolve(process.cwd(), ".env");
 

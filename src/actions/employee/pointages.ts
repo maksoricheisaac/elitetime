@@ -170,7 +170,7 @@ export async function startEmployeePointage(userId: string) {
       "pointage"
     );
   }
-
+  
   return pointage;
 }
 

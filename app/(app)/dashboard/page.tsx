@@ -181,60 +181,6 @@ export default async function AppDashboardPage() {
             </div>
           </CardContent>
         </Card>
-
-        {/* Alertes système */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Alertes système</CardTitle>
-            <CardDescription>Événements récents nécessitant votre attention</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3 rounded-lg border border-success/50 bg-success/10 p-3">
-              <div className="h-2 w-2 rounded-full bg-success" />
-              <p className="text-sm">Système opérationnel - Aucun problème détecté</p>
-            </div>
-            <div className="flex items-center gap-3 rounded-lg border border-primary/50 bg-primary/10 p-3">
-              <div className="h-2 w-2 rounded-full bg-primary" />
-              <p className="text-sm">3 nouvelles demandes de congés en attente</p>
-            </div>
-            <div className="flex items-center gap-3 rounded-lg border border-warning/50 bg-warning/10 p-3">
-              <div className="h-2 w-2 rounded-full bg-warning" />
-              <p className="text-sm">2 corrections de pointage à valider</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Logs récents */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Activité récente</CardTitle>
-            <CardDescription>Dernières actions importantes</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {recentLogs.map((log) => {
-                const logUser = log.user;
-                return (
-                  <div key={log.id} className="flex items-start gap-3 rounded-lg border p-3">
-                    <div className="text-2xl">{logUser?.avatar}</div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        {logUser?.firstname} {logUser?.lastname}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{log.action}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(log.timestamp).toLocaleString('fr-FR')}
-                      </p>
-                    </div>
-                    <Badge variant="outline" className="capitalize">
-                      {log.type}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
       </div>
     );
   }

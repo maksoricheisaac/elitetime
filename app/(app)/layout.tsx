@@ -11,9 +11,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="relative flex-1 overflow-hidden">
           <div className="pointer-events-none absolute inset-0 opacity-30">
             <div className="absolute -left-24 -top-24 h-64 w-64 rounded-full blur-3xl" />
-            <div className="absolute bottom-[-80px] right-[-40px] h-72 w-72 rounded-full bg-sky-500/20 blur-3xl dark:bg-sky-400/20" />
+            <div className="absolute bottom-[-80px] right-[-40px] h-72 w-72 rounded-full bg-white blur-3xl dark:bg-sky-400/20" />
           </div>
-          <div className="relative z-10 flex flex-1 flex-col gap-2 p-2 pt-0 sm:gap-4 sm:p-4">
+          <div className="relative z-10 flex flex-1 flex-col gap-2 p-2 pt-0 sm:gap-4 sm:p-4 bg-white/5">
             {children}
           </div>
         </div>

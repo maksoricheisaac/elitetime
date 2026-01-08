@@ -84,7 +84,6 @@ model SystemSettings {
   id                        Int      @id @default(1)
   workStartTime             String
   workEndTime               String
-  maxSessionEndTime         String   @default("20:00")
   breakDuration             Int
   overtimeThreshold         Int
   holidays                  Json
@@ -93,27 +92,28 @@ model SystemSettings {
   lateAlertsEnabled         Boolean  @default(true)
   notificationsEnabled      Boolean  @default(true)
   pointageRemindersEnabled  Boolean  @default(true)
+  maxSessionEndTime         String   @default("20:00")
 }
 
 model Department {
   id          String     @id @default(cuid())
   name        String     @unique
   description String?
-  positions   Position[]
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
+  positions   Position[]
 
   @@map("Department")
 }
 
 model Position {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   name         String
   description  String?
   departmentId String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
 
   @@unique([name, departmentId])
   @@map("Position")

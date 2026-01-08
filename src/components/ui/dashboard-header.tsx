@@ -1,18 +1,22 @@
-'use client';
+"use client";
 
-import { memo } from 'react';
-import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
-import { SidebarTrigger } from '@/components/ui/sidebar';
-import { Separator } from '@/components/ui/separator';
+import { memo } from "react";
+import { usePathname } from "next/navigation";
+import { motion } from "framer-motion";
+import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Separator } from "@/components/ui/separator";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbLink,
   BreadcrumbList,
-} from '@/components/ui/breadcrumb';
-import { ModeToggle } from './toggle-mode';
-import { UserNav } from '../customs/user-nav';
+} from "@/components/ui/breadcrumb";
+import { ModeToggle } from "./toggle-mode";
+import { UserNav } from "../customs/user-nav";
+import { Button } from "@/components/ui/button";
+import { Bell } from "lucide-react";
+import { useRealtime } from "@/contexts/realtime-context";
+import { useAuth } from "@/contexts/auth-context";
 
 interface DashboardHeaderProps {
   searchQuery?: string;
@@ -25,8 +29,10 @@ interface DashboardHeaderProps {
 export const DashboardHeader = memo(
   ({}: DashboardHeaderProps) => {
     const pathname = usePathname();
+    const { lateAlerts, clearLateAlerts } = useRealtime();
+    const { user } = useAuth();
 
-    const segments = pathname.split('/').filter(Boolean);
+    const segments = pathname.split("/").filter(Boolean);
 
     const getSegmentLabel = (segment: string, index: number) => {
       const rootLabels: Record<string, string> = {
@@ -70,8 +76,10 @@ export const DashboardHeader = memo(
             label: getSegmentLabel(segment, index),
           }));
 
+    const canSeeAlerts = user && (user.role === "employee" || user.role === "admin");
+
     return (
-      <header className="bg-background text-foreground sticky top-0 z-50 flex h-16 w-full shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+      <header className="bg-blue-500 text-foreground sticky top-0 z-50 flex h-16 w-full shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
         <div className="flex items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
@@ -100,6 +108,23 @@ export const DashboardHeader = memo(
         </div>
 
         <div className="ml-auto flex items-center gap-2 px-4">
+          {canSeeAlerts && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="relative h-9 w-9"
+              onClick={clearLateAlerts}
+              aria-label="Notifications de retard"
+            >
+              <Bell className="h-4 w-4" />
+              {lateAlerts.length > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                  {lateAlerts.length}
+                </span>
+              )}
+            </Button>
+          )}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
