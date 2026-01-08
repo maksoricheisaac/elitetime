@@ -101,7 +101,7 @@ export default function EmployeePointagesClient({ pointages }: EmployeePointages
         return (
           <Badge
             variant="outline"
-            className="border-border bg-muted text-sky-700 dark:bg-muted/40 dark:text-sky-300"
+            className="border-border bg-muted text-primary dark:bg-muted/40 dark:text-primary"
           >
             Incomplet
           </Badge>
@@ -122,8 +122,8 @@ export default function EmployeePointagesClient({ pointages }: EmployeePointages
         </p>
       </div>
 
-      <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card className="border-none bg-primary/5 shadow-sm rounded-xl">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <Card className="border-none bg-primary/40 shadow-sm rounded-xl">
           <CardContent className="px-4 py-3">
             <p className="text-xs font-medium text-muted-foreground">Pointages</p>
             <p className="mt-1 text-2xl font-semibold tracking-tight text-primary">
@@ -149,7 +149,7 @@ export default function EmployeePointagesClient({ pointages }: EmployeePointages
         </Card>
       </div>
 
-      <Card className="border border-primary/20 bg-card rounded-xl shadow-md">
+      <Card className="border border-primary/20 rounded-xl shadow-md mt-10">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg md:text-xl">
             <Clock className="h-5 w-5 text-primary" />

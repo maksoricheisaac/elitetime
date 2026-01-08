@@ -12,14 +12,14 @@ export const UserNav = () => {
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="relative h-11 rounded-full px-3 hover:bg-primary/5 transition-all">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-9 w-9 ring-2 ring-primary/20">
+                  <Avatar className="h-9 w-9 ring-2 ring-white">
                     <AvatarFallback className="bg-primary text-white font-semibold text-sm">
                       { `${user?.firstname && user?.firstname[0].toUpperCase()} ${user?.lastname && user?.lastname[0].toUpperCase()}` }
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden md:flex flex-col items-start">
-                    <p className="text-sm font-semibold leading-none">{user?.firstname}</p>
-                    <p className="text-xs text-muted-foreground capitalize">{user?.role}</p>
+                    <p className="text-sm text-white font-semibold leading-none">{user?.firstname}</p>
+                    <p className="text-xs text-white-500 capitalize">{user?.role}</p>
                   </div>
                 </div>
               </Button>

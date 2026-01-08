@@ -10,7 +10,7 @@ const activities = [
     user: 'john@example.com',
     time: '2 min ago',
     icon: User,
-    color: 'text-blue-500',
+    color: 'text-primary',
   },
   {
     action: 'Data export',

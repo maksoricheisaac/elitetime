@@ -79,9 +79,9 @@ export const DashboardHeader = memo(
     const canSeeAlerts = user && (user.role === "employee" || user.role === "admin");
 
     return (
-      <header className="bg-blue-500 text-foreground sticky top-0 z-50 flex h-16 w-full shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+      <header className="bg-cyan-700 text-foreground sticky top-0 z-50 flex h-16 w-full shrink-0 items-center gap-2 border-b border-border transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
         <div className="flex items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
+          <SidebarTrigger className="-ml-1 text-white" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <Breadcrumb>
             <BreadcrumbList>
@@ -98,7 +98,7 @@ export const DashboardHeader = memo(
                     {index < breadcrumbs.length - 1 ? (
                       <BreadcrumbLink href={crumb.href}>{crumb.label}</BreadcrumbLink>
                     ) : (
-                      <span className="font-semibold">{crumb.label}</span>
+                      <span className="font-semibold text-white">{crumb.label}</span>
                     )}
                   </BreadcrumbItem>
                 ))
@@ -117,7 +117,7 @@ export const DashboardHeader = memo(
               onClick={clearLateAlerts}
               aria-label="Notifications de retard"
             >
-              <Bell className="h-4 w-4" />
+              <Bell className="h-4 w-4 text-white" />
               {lateAlerts.length > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
                   {lateAlerts.length}

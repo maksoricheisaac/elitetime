@@ -407,7 +407,7 @@ export default function EmployeeDashboardClient({
 
 		{/* Boutons de pointage */}
 		<div className="grid gap-4 md:grid-cols-2">
-		<Card className="h-full rounded-xl border border-sky-200 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-sky-900/40">
+		<Card className="h-full rounded-xl border border-primary/20 bg-card shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-primary/20">
 			<CardHeader>
 			<CardTitle className="flex items-center gap-2">
 				<Coffee className="h-5 w-5 text-primary" />
@@ -422,7 +422,7 @@ export default function EmployeeDashboardClient({
 				variant="outline"
 				className={`w-full h-16 text-lg font-semibold rounded-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed ${
 				isActive && !isOnBreak && isInBreakTimeRange
-					? "border-sky-500 bg-sky-500/10 text-sky-700 dark:border-sky-400 dark:text-sky-200"
+					? "border-primary bg-primary/10 text-primary"
 					: "border-border text-muted-foreground"
 				}`}
 			>
@@ -547,51 +547,6 @@ export default function EmployeeDashboardClient({
 				</div>
 				</div>
 			)}
-			</CardContent>
-		</Card>
-		</div>
-
-		{/* Statistiques de la semaine */}
-		<div className="grid gap-4 md:grid-cols-3">
-		<Card className="border border-primary/15 bg-card shadow-sm">
-			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-			<CardTitle className="text-sm font-medium">Heures travaillées</CardTitle>
-			<Clock className="h-4 w-4 text-muted-foreground" />
-			</CardHeader>
-			<CardContent>
-			<div className="text-2xl font-bold">{weekHours}h</div>
-			<p className="text-xs text-muted-foreground">Cette semaine</p>
-			<p className={`mt-1 text-xs font-medium ${weekHoursLabelClass}`}>
-				{weekHoursLabel}
-			</p>
-			</CardContent>
-		</Card>
-
-		<Card className="border border-amber-100 bg-card shadow-sm dark:border-amber-900/40">
-			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-			<CardTitle className="text-sm font-medium">Retards</CardTitle>
-			<AlertCircle className="h-4 w-4 text-muted-foreground" />
-			</CardHeader>
-			<CardContent>
-			<div className="text-2xl font-bold">{weekLates}</div>
-			<p className="text-xs text-muted-foreground">Cette semaine</p>
-			<p className={`mt-1 text-xs font-medium ${weekLatesLabelClass}`}>
-				{weekLatesLabel}
-			</p>
-			</CardContent>
-		</Card>
-
-		<Card className="border border-primary/10 bg-card shadow-sm">
-			<CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-			<CardTitle className="text-sm font-medium">Heures supplémentaires</CardTitle>
-			<TrendingUp className="h-4 w-4 text-muted-foreground" />
-			</CardHeader>
-			<CardContent>
-			<div className="text-2xl font-bold">{weekOvertime}h</div>
-			<p className="text-xs text-muted-foreground">Cette semaine</p>
-			<p className={`mt-1 text-xs font-medium ${weekOvertimeLabelClass}`}>
-				{weekOvertimeLabel}
-			</p>
 			</CardContent>
 		</Card>
 		</div>

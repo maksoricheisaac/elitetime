@@ -1,7 +1,7 @@
+import "dotenv/config";
 import { createServer } from "http";
 import next from "next";
 import { Server as SocketIOServer, type Socket } from "socket.io";
-import "./load-encrypted-env";
 import prisma from "./src/lib/prisma";
 
 interface LateAlertPayload {
@@ -140,7 +140,7 @@ app.prepare().then(() => {
     const timestamp = new Date().toISOString();
     for (const userId of uniqueUserIds) {
       const payload: PointageReminderPayload = {
-        userId,
+        userId: userId as string,
         message: "N'oubliez pas de pointer votre heure de départ.",
         timestamp,
       };

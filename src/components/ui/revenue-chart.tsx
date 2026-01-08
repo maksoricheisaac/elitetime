@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { BarChart3, Calendar } from 'lucide-react';
 
 const chartData = [
-  { month: 'Jan', value: 4000, growth: 12, color: 'bg-blue-500' },
+  { month: 'Jan', value: 4000, growth: 12, color: 'bg-primary' },
   { month: 'Feb', value: 3000, growth: -8, color: 'bg-red-500' },
   { month: 'Mar', value: 5000, growth: 25, color: 'bg-green-500' },
   { month: 'Apr', value: 4500, growth: 15, color: 'bg-yellow-500' },
@@ -75,7 +75,7 @@ export const RevenueChart = memo(() => {
           <div className="text-muted-foreground text-xs">Total Revenue</div>
         </div>
         <div className="text-center">
-          <div className="text-2xl font-bold text-blue-500">+18%</div>
+          <div className="text-2xl font-bold text-primary">+18%</div>
           <div className="text-muted-foreground text-xs">Growth Rate</div>
         </div>
         <div className="text-center">

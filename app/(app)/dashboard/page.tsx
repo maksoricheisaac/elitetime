@@ -7,9 +7,10 @@ import { getAdminDashboardStats } from "@/actions/admin/dashboard";
 import { getEmployeeTodayPointage, getEmployeeWeekStats } from "@/actions/employee/pointages";
 import EmployeeDashboardClient from "@/features/employee/dashboard";
 import ManagerDashboardClient from "@/features/manager/dashboard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, UserCheck, Shield, Activity, TrendingUp } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Users, UserCheck, Shield, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { PresenceEvolutionCard } from "@/components/charts/presence-evolution-card";
 
 export default async function AppDashboardPage() {
   const cookieStore = await cookies();
@@ -128,30 +129,7 @@ export default async function AppDashboardPage() {
         </div>
 
         {/* Graphique d'évolution */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Évolution des présences
-            </CardTitle>
-            <CardDescription>Nombre d&apos;employés présents sur les 30 derniers jours</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex h-64 items-end justify-between gap-1">
-              {monthData.map((data, i) => (
-                <div key={i} className="flex flex-1 flex-col items-center gap-1">
-                  <div
-                    className="w-full rounded-t-md bg-gradient-primary transition-all hover:opacity-80"
-                    style={{ height: `${(data.presence / employees) * 100}%` }}
-                  />
-                  {i % 5 === 0 && (
-                    <span className="text-[10px] text-muted-foreground">{data.date}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <PresenceEvolutionCard data={monthData} />
 
         {/* Répartition par service */}
         <Card>

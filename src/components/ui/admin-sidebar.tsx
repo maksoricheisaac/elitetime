@@ -101,7 +101,7 @@ export const AdminSidebar = memo(() => {
 
   
   return (
-    <Sidebar collapsible="icon" className="bg-white">
+    <Sidebar collapsible="icon" className="bg-cyan-600 border-cyan-600">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -125,11 +125,9 @@ export const AdminSidebar = memo(() => {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[11px] font-medium uppercase tracking-[0.25em] text-muted-foreground/80">
-            Navigation
-          </SidebarGroupLabel>
+          
           <SidebarGroupContent>
-            <SidebarMenu className="mt-3 gap-2">
+            <SidebarMenu className="mt-5 gap-3">
               {currentMenu.length > 0 ? (
                 currentMenu.map((mi) => {
                   const Icon = mi.icon;
@@ -140,9 +138,9 @@ export const AdminSidebar = memo(() => {
                         asChild
                         isActive={isActive}
                         className={
-                          `transition-all duration-200 ease-out hover:translate-x-0.5 rounded-lg px-3 py-2.5 text-bleu-500 ` +
+                          `transition-all duration-200 ease-out hover:translate-x-0.5 rounded-lg px-3 py-3 text-gray-100 ` +
                           (isActive
-                            ? 'border-l-4 border-primary/80 bg-primary/10 text-blue-500 shadow-md'
+                            ? 'border-l-4 border-white/80 bg-primary/10 text-white shadow-md'
                             : 'text-muted-foreground hover:bg-sidebar-accent/60')
                         }
                       >
@@ -150,17 +148,17 @@ export const AdminSidebar = memo(() => {
                           prefetch={false} 
                           href={mi.to}
                           aria-current={isActive ? 'page' : undefined}
-                          className="flex w-full items-center gap-3 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 text-blue-500"
+                          className="flex w-full items-center gap-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 text-white"
                         >
                           <span
                             className={
                               isActive
-                                ? 'h-1.5 w-1.5 rounded-full bg-primary transition-colors group-data-[collapsible=icon]:hidden'
-                                : 'h-1.5 w-1.5 rounded-full bg-transparent transition-colors group-data-[collapsible=icon]:hidden'
+                                ? 'h-2 w-2 rounded-full bg-primary transition-colors group-data-[collapsible=icon]:hidden'
+                                : 'h-2 w-2 rounded-full bg-transparent transition-colors group-data-[collapsible=icon]:hidden'
                             }
                           />
-                          <Icon className="h-4 w-4 shrink-0 text-blue-500" />
-                          <span className="truncate group-data-[collapsible=icon]:hidden text-blue-500">
+                          <Icon className="h-4 w-4 shrink-0 text-white font-semibold" />
+                          <span className="truncate group-data-[collapsible=icon]:hidden text-white font-semibold">
                             {mi.label}
                           </span>
                         </Link>
