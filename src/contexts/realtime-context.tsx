@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { io, type Socket } from "socket.io-client";
 import { useAuth } from "@/contexts/auth-context";
- import { toast } from "sonner";
+import { useNotification } from "@/contexts/notification-context";
 
 export type LateAlertPayload = {
   userId: string;
@@ -29,6 +29,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [lateAlerts, setLateAlerts] = useState<LateAlertPayload[]>([]);
   const socketRef = useRef<Socket | null>(null);
+  const { showInfo } = useNotification();
 
   useEffect(() => {
     if (!user) {
@@ -56,7 +57,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     const handlePointageExitReminder = (payload: PointageReminderPayload) => {
       if (user.role !== "employee") return;
       if (payload.userId !== user.id) return;
-      toast.info(payload.message);
+      showInfo(payload.message);
     };
 
     socket.on("employee_late_alert", handleLateAlert);

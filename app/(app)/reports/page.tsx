@@ -2,31 +2,15 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from '@/lib/session';
+import { requirePermission } from '@/lib/security/rbac';
 import { managerGetReportsData } from '@/actions/manager/reports';
 import ManagerReportsClient from '@/features/manager/reports';
 
 export default async function AppReportsPage() {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!sessionToken) {
-    redirect('/login');
-  }
-
-  const session = await prisma.session.findUnique({
-    where: { sessionToken },
-    include: { user: true },
-  });
-
-  if (!session || session.expiresAt < new Date() || !session.user) {
-    redirect('/login');
-  }
-
-  const user = sanitizeUser(session.user);
-
-  if (!['manager', 'admin'].includes(user.role)) {
-    redirect(getDashboardPath(user.role));
-  }
+  try {
+    // Vérifier si l'utilisateur a la permission de voir les rapports
+    const auth = await requirePermission('view_reports')();
+    const user = auth.user;
 
   if (user.role === 'manager') {
     const data = await managerGetReportsData(user.id);
@@ -64,8 +48,15 @@ export default async function AppReportsPage() {
   const pointages = await prisma.pointage.findMany({
     where: {
       userId: { in: teamIds },
-      date: {
-        gte: since,
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          firstname: true,
+          lastname: true,
+        },
       },
     },
     orderBy: { date: 'desc' },
@@ -81,4 +72,8 @@ export default async function AppReportsPage() {
       overtimeThreshold={overtimeThreshold}
     />
   );
+  } catch (error) {
+    console.error('Erreur lors de l\'accès aux rapports:', error);
+    redirect('/dashboard');
+  }
 }

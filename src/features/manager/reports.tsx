@@ -24,13 +24,15 @@ interface EmployeeStats {
   overtimeHours: number;
 }
 
-type Period = "week" | "month" | "quarter";
+type Period = "day" | "week" | "month" | "quarter";
 
 function getPeriodStart(period: Period, now: Date) {
   const start = new Date(now);
   start.setHours(0, 0, 0, 0);
 
-  if (period === "week") {
+  if (period === "day") {
+    // aujourd'hui
+  } else if (period === "week") {
     const day = start.getDay();
     const diff = (day + 6) % 7;
     start.setDate(start.getDate() - diff);
@@ -208,7 +210,9 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
       const tableRowAltBg = rgb(0.985, 0.99, 1);
 
       const periodLabel =
-        period === "week"
+        period === "day"
+          ? "Aujourd'hui"
+          : period === "week"
           ? "Semaine en cours"
           : period === "month"
           ? "Mois en cours"
@@ -493,6 +497,7 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
               <SelectValue placeholder="Période" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="day">Aujourd&apos;hui</SelectItem>
               <SelectItem value="week">Cette semaine</SelectItem>
               <SelectItem value="month">Ce mois</SelectItem>
               <SelectItem value="quarter">Ce trimestre</SelectItem>
@@ -563,7 +568,9 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
         <CardHeader>
           <CardTitle>Récapitulatif par employé</CardTitle>
           <CardDescription>
-            {period === "week"
+            {period === "day"
+              ? "Aujourd'hui"
+              : period === "week"
               ? "Semaine en cours"
               : period === "month"
               ? "Mois en cours"

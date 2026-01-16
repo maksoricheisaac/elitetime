@@ -8,6 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "../ui/label";
 
 type Department = {
   id: string;
@@ -41,10 +42,10 @@ export function PositionsFilter({ departments, selectedDepartment }: PositionsFi
 
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
-      <div className="flex flex-wrap items-center gap-2">
-        <label htmlFor="department" className="text-sm text-muted-foreground">
+      <div className="space-y-2">
+        <Label htmlFor="department" className="text-sm text-muted-foreground">
           Filtrer par département
-        </label>
+        </Label>
         <Select value={selectedDepartment} onValueChange={handleChange}>
           <SelectTrigger id="department" className="h-9 w-56 text-sm">
             <SelectValue placeholder="Tous les départements" />

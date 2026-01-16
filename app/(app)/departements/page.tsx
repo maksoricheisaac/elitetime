@@ -34,7 +34,6 @@ async function createDepartment(formData: FormData) {
       description,
     },
   });
-
   revalidatePath('/departements');
 }
 
@@ -112,7 +111,11 @@ async function deleteDepartment(formData: FormData) {
   revalidatePath('/departements');
 }
 
-export default async function AppDepartmentsPage() {
+export default async function AppDepartmentsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string }>;
+}) {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -134,6 +137,8 @@ export default async function AppDepartmentsPage() {
   if (!['manager', 'admin'].includes(user.role)) {
     redirect(getDashboardPath(user.role));
   }
+
+  const search = ((await searchParams)?.q || '').trim().toLowerCase();
 
   const departments = await prisma.department.findMany({
     orderBy: { name: 'asc' },
@@ -160,9 +165,16 @@ export default async function AppDepartmentsPage() {
     };
   });
 
+  const filteredDepartments = departmentsWithCounts.filter((department) => {
+    if (!search) return true;
+    const nameMatch = department.name.toLowerCase().includes(search);
+    const descMatch = (department.description || '').toLowerCase().includes(search);
+    return nameMatch || descMatch;
+  });
+
   return (
-    <div className="space-y-5 sm:space-y-6">
-      <div className="space-y-2">
+    <div className="space-y-6">
+      <div className="space-y-3">
         <div className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
           Départements
@@ -172,7 +184,7 @@ export default async function AppDepartmentsPage() {
           Gérez les départements et visualisez le nombre d&apos;employés associés
         </p>
       </div>
-      <Card className="border border-border/80 bg-card/90 shadow-sm gap-4 py-4">
+      <Card className="border border-border/80 bg-card/90 shadow-sm">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <CardTitle>Liste des départements</CardTitle>
@@ -180,43 +192,54 @@ export default async function AppDepartmentsPage() {
               Vue d&apos;ensemble des départements et du nombre d&apos;employés associés
             </CardDescription>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button type="button" className="cursor-pointer">
-                Nouveau département
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Nouveau département</DialogTitle>
-                <DialogDescription>
-                  Créez un nouveau département disponible pour votre équipe.
-                </DialogDescription>
-              </DialogHeader>
-              <form action={createDepartment} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-department-name">Nom du département</Label>
-                  <Input
-                    id="new-department-name"
-                    name="name"
-                    placeholder="Ex: Informatique, Ressources humaines..."
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-department-description">Description du département</Label>
-                  <Input
-                    id="new-department-description"
-                    name="description"
-                    placeholder="Description courte du département (optionnel)"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="submit">Créer</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+            <form className="w-full md:w-64" action="/departements" method="get">
+              <Input
+                type="text"
+                name="q"
+                placeholder="Rechercher un département..."
+                defaultValue={(await searchParams)?.q || ''}
+                className="h-9 text-sm"
+              />
+            </form>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" className="cursor-pointer">
+                  Nouveau département
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Nouveau département</DialogTitle>
+                  <DialogDescription>
+                    Créez un nouveau département disponible pour votre équipe.
+                  </DialogDescription>
+                </DialogHeader>
+                <form action={createDepartment} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="new-department-name">Nom du département</Label>
+                    <Input
+                      id="new-department-name"
+                      name="name"
+                      placeholder="Ex: Informatique, Ressources humaines..."
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-department-description">Description du département</Label>
+                    <Input
+                      id="new-department-description"
+                      name="description"
+                      placeholder="Description courte du département (optionnel)"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="submit">Créer</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="w-full overflow-x-auto">
@@ -230,7 +253,14 @@ export default async function AppDepartmentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {departmentsWithCounts.map((department) => {
+                {filteredDepartments.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                      Aucun département ne correspond à votre recherche.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                filteredDepartments.map((department) => {
                   const count = department.employeesCount;
                   const employeesLabel =
                     count === 0
@@ -333,7 +363,7 @@ export default async function AppDepartmentsPage() {
                       </TableCell>
                     </TableRow>
                   );
-                })}
+                }))}
               </TableBody>
             </Table>
           </div>

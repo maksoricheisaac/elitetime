@@ -1,11 +1,15 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { validateAndSanitize, SystemSettingsSchema } from "@/lib/validation/schemas";
+import { requireAdmin } from "@/lib/security/rbac";
+import { logSecurityEvent } from "@/lib/security/rbac";
 import type { SystemSettings } from "@/generated/prisma/client";
 
 const SYSTEM_SETTINGS_ID = 1;
 
-export async function adminGetSystemSettings(): Promise<SystemSettings> {
+// Fonction publique pour obtenir les paramètres système sans vérification admin
+export async function getSystemSettings(): Promise<SystemSettings> {
   let settings = await prisma.systemSettings.findUnique({
     where: { id: SYSTEM_SETTINGS_ID },
   });
@@ -31,22 +35,31 @@ export async function adminGetSystemSettings(): Promise<SystemSettings> {
   return settings;
 }
 
-export async function adminUpdateSystemSettings(data: {
-  workStartTime?: string;
-  workEndTime?: string;
-  maxSessionEndTime?: string;
-  breakDuration?: number;
-  overtimeThreshold?: number;
-  holidays?: string[];
-  notificationsEnabled?: boolean;
-  emailNotificationsEnabled?: boolean;
-  lateAlertsEnabled?: boolean;
-  pointageRemindersEnabled?: boolean;
-}) {
+export async function adminGetSystemSettings(): Promise<SystemSettings> {
+  // Vérifier les permissions admin
+  const auth = await requireAdmin();
+  
+  return getSystemSettings();
+}
+
+export async function adminUpdateSystemSettings(data: Partial<SystemSettings>) {
+  // Vérifier les permissions admin
+  const auth = await requireAdmin();
+  
+  // Valider et nettoyer les données
+  const validatedData = validateAndSanitize(SystemSettingsSchema.partial(), data);
+  
   const settings = await prisma.systemSettings.update({
     where: { id: SYSTEM_SETTINGS_ID },
-    data,
+    data: validatedData,
   });
+  
+  // Logger la modification
+  await logSecurityEvent(
+    auth.user.id,
+    "SYSTEM_SETTINGS_UPDATED",
+    `Modification des paramètres: ${Object.keys(validatedData).join(", ")}`
+  );
 
   return settings;
 }

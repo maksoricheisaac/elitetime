@@ -3,6 +3,8 @@ import { Client } from "ldapts";
 import prisma from "@/lib/prisma";
 import { SESSION_COOKIE_NAME, SESSION_MAX_AGE, sanitizeUser, sessionCookieOptions } from "@/lib/session";
 import { createActivityLog } from "@/actions/admin/logs";
+import { validateAndSanitize, LoginSchema } from "@/lib/validation/schemas";
+import { checkRateLimit, markLoginAttempt, logSecurityEvent } from "@/lib/security/rbac";
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -88,18 +90,66 @@ async function upsertUser(
 }
 
 export async function POST(req: Request) {
+  const startTime = Date.now();
+  const clientIp = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+  const userAgent = req.headers.get('user-agent') || 'unknown';
+
   try {
     const body = await req.json();
-    const { username: rawUsername, password } = body;
 
-    const username = rawUsername;
+    // Valider et nettoyer les données d'entrée
+    const { username, password } = validateAndSanitize(LoginSchema, body);
 
-    if (!username || !password) {
+    // Rate limiting par IP et username
+    const canAttempt = await checkRateLimit(`${clientIp}:${username}`);
+    if (!canAttempt) {
+      await markLoginAttempt(username, false);
+      await logSecurityEvent(
+        'system',
+        'LOGIN_RATE_LIMITED',
+        `Trop de tentatives pour ${username} depuis ${clientIp}`,
+        clientIp,
+        userAgent
+      );
       return NextResponse.json(
-        { error: "Missing username or password" },
-        { status: 400 }
+        { error: "Trop de tentatives de connexion. Réessayez plus tard." },
+        { status: 429 }
       );
     }
+
+    // Configuration LDAP avec validation
+    const LDAP_URL = process.env.LDAP_URL as string;
+    const LDAP_BIND_DN = process.env.LDAP_BIND_DN as string;
+    const LDAP_BIND_PWD = process.env.LDAP_PWD as string;
+    const LDAP_BASE_DN = process.env.LDAP_BASE_DN as string;
+
+    if (!LDAP_URL || !LDAP_BIND_DN || !LDAP_BIND_PWD || !LDAP_BASE_DN) {
+      await markLoginAttempt(username, false);
+      await logSecurityEvent(
+        'system',
+        'LDAP_CONFIG_MISSING',
+        'Configuration LDAP manquante',
+        clientIp,
+        userAgent
+      );
+      return NextResponse.json(
+        { error: "Service temporairement indisponible" },
+        { status: 503 }
+      );
+    }
+
+    // Connexion LDAP sécurisée avec timeout
+    const client = new Client({
+      url: LDAP_URL,
+      tlsOptions: { 
+        rejectUnauthorized: process.env.NODE_ENV === 'production', // Sécurisé en production
+        minVersion: 'TLSv1.2',
+      },
+      timeout: 10000,
+      connectTimeout: 5000,
+    });
+
+    await client.bind(LDAP_BIND_DN, LDAP_BIND_PWD);
 
     // Échapper les caractères spéciaux LDAP pour éviter les injections
     const escapeLdapFilter = (value: string): string => {
@@ -114,46 +164,35 @@ export async function POST(req: Request) {
 
     const escapedUsername = escapeLdapFilter(username);
 
-    const LDAP_URL = process.env.LDAP_URL as string;
-    const LDAP_BIND_DN = process.env.LDAP_BIND_DN as string;
-    const LDAP_BIND_PWD = process.env.LDAP_PWD as string;
-    const LDAP_BASE_DN = process.env.LDAP_BASE_DN as string;
-
-    if (!LDAP_URL || !LDAP_BIND_DN || !LDAP_BIND_PWD || !LDAP_BASE_DN) {
-      return NextResponse.json(
-        { error: "LDAP configuration is missing" },
-        { status: 500 }
-      );
-    }
-
-    const client = new Client({
-      url: LDAP_URL,
-      tlsOptions: { rejectUnauthorized: false },
-    });
-
-    await client.bind(LDAP_BIND_DN, LDAP_BIND_PWD);
-
     const { searchEntries } = await client.search(LDAP_BASE_DN, {
       scope: "sub",
       filter: `(sAMAccountName=${escapedUsername})`,
       attributes: ["dn", "cn", "mail", "givenName", "sn", "department", "title"],
+      sizeLimit: 1, // Limiter à 1 résultat pour éviter l'énumération
     });
 
     if (searchEntries.length === 0) {
       await client.unbind();
+      await markLoginAttempt(username, false);
+      // Ne pas révéler si l'utilisateur existe
       return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
+        { error: "Identifiants invalides" },
+        { status: 401 }
       );
     }
 
     const user = searchEntries[0];
     const userDN = user.dn;
 
-    // Vérification du mot de passe
+    // Vérification du mot de passe avec client séparé
     const userClient = new Client({
       url: LDAP_URL,
-      tlsOptions: { rejectUnauthorized: false },
+      tlsOptions: { 
+        rejectUnauthorized: process.env.NODE_ENV === 'production',
+        minVersion: 'TLSv1.2',
+      },
+      timeout: 10000,
+      connectTimeout: 5000,
     });
 
     try {
@@ -161,14 +200,19 @@ export async function POST(req: Request) {
     } catch {
       await userClient.unbind();
       await client.unbind();
+      await markLoginAttempt(username, false);
+      // Message générique pour éviter l'énumération
       return NextResponse.json(
-        { error: "Invalid credentials" },
+        { error: "Identifiants invalides" },
         { status: 401 }
       );
     }
 
     await userClient.unbind();
     await client.unbind();
+
+    // Marquer la tentative comme réussie
+    await markLoginAttempt(username, true);
 
     // Fonction helper pour extraire et convertir les valeurs LDAP en string
     const getLdapValue = (value: unknown): string | null => {
@@ -237,6 +281,15 @@ export async function POST(req: Request) {
       `${appUser.firstname || ""} ${appUser.lastname || ""}`.trim() || appUser.username,
       "auth"
     );
+    
+    // Logger de sécurité supplémentaire
+    await logSecurityEvent(
+      appUser.id,
+      'LOGIN_SUCCESS',
+      `Connexion réussie pour ${username}`,
+      clientIp,
+      userAgent
+    );
 
     const safeUser = sanitizeUser(appUser);
 
@@ -253,17 +306,28 @@ export async function POST(req: Request) {
 
     return response;
   } catch (error: unknown) {
-    console.error("[Login API] Erreur:", error);
-
-    if (error instanceof Error) {
-      return NextResponse.json(
-        { error: "Authentication failed", details: error.message },
-        { status: 500 }
-      );
-    }
+    const duration = Date.now() - startTime;
     
+    // Logger l'erreur sans révéler d'informations sensibles
+    console.error(`[Login API] Erreur (${duration}ms):`, {
+      error: error instanceof Error ? error.name : 'Unknown',
+      message: error instanceof Error ? error.message : 'Unknown error',
+      ip: clientIp,
+      userAgent: userAgent.substring(0, 100), // Limiter la taille
+    });
+    
+    // Logger de sécurité
+    await logSecurityEvent(
+      'system',
+      'LOGIN_ERROR',
+      `Erreur lors de la connexion: ${error instanceof Error ? error.name : 'Unknown'}`,
+      clientIp,
+      userAgent
+    );
+
+    // Ne jamais révéler les détails de l'erreur au client
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Service temporairement indisponible" },
       { status: 500 }
     );
   }

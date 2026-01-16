@@ -24,7 +24,9 @@ model User {
   activityLogs       ActivityLog[]
   correctionRequests CorrectionRequest[]
   pointages          Pointage[]
+  breaks             Break[]
   sessions           Session[]
+  userPermissions    UserPermission[]
 }
 
 model Pointage {
@@ -39,6 +41,18 @@ model Pointage {
   createdAt          DateTime            @default(now())
   correctionRequests CorrectionRequest[]
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Break {
+  id        String   @id @default(cuid())
+  userId    String
+  date      DateTime
+  startTime String
+  endTime   String?
+  duration  Int?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Absence {
@@ -72,12 +86,12 @@ model CorrectionRequest {
 
 model ActivityLog {
   id        String       @id @default(cuid())
-  userId    String
+  userId    String?
   action    String
   details   String
   timestamp DateTime     @default(now())
   type      ActivityType
-  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SystemSettings {
@@ -128,6 +142,28 @@ model Session {
   expiresAt    DateTime
   createdAt    DateTime @default(now())
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Permission {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  description String?
+  category    String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  userPermissions UserPermission[]
+}
+
+model UserPermission {
+  id           String      @id @default(cuid())
+  userId       String
+  permissionId String
+  grantedBy    String
+  grantedAt    DateTime    @default(now())
+  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permissionId])
 }
 
 enum UserRole {

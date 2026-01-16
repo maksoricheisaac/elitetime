@@ -3,21 +3,17 @@
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { useNotification } from "@/contexts/notification-context";
 import { useRealtime } from "@/contexts/realtime-context";
 import { AlertCircle, Clock, Coffee, TrendingUp, X } from "lucide-react";
 import type { SafeUser } from "@/lib/session";
-import type { Pointage } from "@/generated/prisma/client";
+import type { Pointage, Break as BreakModel } from "@/generated/prisma/client";
 import { useRouter } from "next/navigation";
 import { startEmployeePointage, endEmployeePointage } from "@/actions/employee/pointages";
+import { startEmployeeBreak, endEmployeeBreak } from "@/actions/employee/breaks";
 import { formatDateFR } from "@/lib/date-utils";
 
-interface Break {
-	startTime: string;
-	endTime?: string;
-	duration?: number;
-}
+type Break = Pick<BreakModel, "startTime" | "endTime" | "duration">;
 
 interface WeekStats {
 	hours: number;
@@ -29,18 +25,24 @@ interface EmployeeDashboardClientProps {
 	user: SafeUser;
 	todayPointage: Pointage | null;
 	weekStats: WeekStats;
+	workStartTime: string;
+	workEndTime: string;
+	initialBreaks: Break[];
 }
 
 export default function EmployeeDashboardClient({
 	user,
 	todayPointage,
 	weekStats,
+	workStartTime,
+	workEndTime,
+	initialBreaks,
 }: EmployeeDashboardClientProps) {
 	const { showSuccess, showInfo, showError } = useNotification();
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [currentTime, setCurrentTime] = useState(new Date());
-	const [breaks, setBreaks] = useState<Break[]>([]);
+	const [breaks, setBreaks] = useState<Break[]>(initialBreaks ?? []);
 	const [isOnBreak, setIsOnBreak] = useState(false);
 	const { emitLateAlert } = useRealtime();
 
@@ -100,38 +102,58 @@ export default function EmployeeDashboardClient({
 		return;
 	}
 
-	const newBreak: Break = {
-		startTime: currentTime.toLocaleTimeString("fr-FR"),
-	};
-	setBreaks((prev) => [...prev, newBreak]);
-	setIsOnBreak(true);
-	showInfo("Pause démarrée à " + newBreak.startTime);
+	startTransition(async () => {
+		try {
+			const created = await startEmployeeBreak(user.id);
+			if (!created) {
+				showError("Échec de l'enregistrement de la pause.");
+				return;
+			}
+			setBreaks((prev) => [
+				...prev,
+				{
+					startTime: created.startTime,
+					endTime: created.endTime ?? undefined,
+					duration: created.duration ?? undefined,
+				},
+			]);
+			setIsOnBreak(true);
+			showInfo("Pause démarrée à " + created.startTime);
+		} catch (e) {
+			console.error(e);
+			showError("Une erreur est survenue lors du démarrage de la pause.");
+		}
+	});
 	};
 
 	const handleBreakEnd = () => {
-	setBreaks((prev) => {
-		if (prev.length === 0) return prev;
+	startTransition(async () => {
+		try {
+			const updated = await endEmployeeBreak(user.id);
+			if (!updated) {
+				showError("Aucune pause active à terminer.");
+				return;
+			}
+			setBreaks((prev) => {
+				if (prev.length === 0) return prev;
 
-		const updated = [...prev];
-		const lastBreak = updated[updated.length - 1];
-		const endTime = currentTime.toLocaleTimeString("fr-FR");
-
-		const today = new Date();
-		const todayISO = today.toISOString().split("T")[0];
-		const startDate = new Date(`${todayISO}T${lastBreak.startTime}`);
-		const endDate = new Date(`${todayISO}T${endTime}`);
-		const duration = Math.floor((endDate.getTime() - startDate.getTime()) / 60000);
-
-		updated[updated.length - 1] = {
-		...lastBreak,
-		endTime,
-		duration,
-		};
-
-		showSuccess(`Pause terminée. Durée: ${duration} minutes`);
-		setIsOnBreak(false);
-
-		return updated;
+				const cloned = [...prev];
+				const last = cloned[cloned.length - 1];
+				cloned[cloned.length - 1] = {
+					...last,
+					endTime: updated.endTime ?? undefined,
+					duration: updated.duration ?? undefined,
+				};
+				return cloned;
+			});
+			setIsOnBreak(false);
+			if (updated.duration != null) {
+				showSuccess(`Pause terminée. Durée: ${updated.duration} minutes`);
+			}
+		} catch (e) {
+			console.error(e);
+			showError("Une erreur est survenue lors de la fin de la pause.");
+		}
 	});
 	};
 
@@ -177,27 +199,6 @@ export default function EmployeeDashboardClient({
 	weekOvertimeLabel = "Charge élevée en heures sup. cette semaine";
 	weekOvertimeLabelClass = "text-amber-600";
 	}
-
-	const WORK_DAY_START_MINUTES = 9 * 60; // 09:00
-	const WORK_DAY_DURATION_MINUTES = 8 * 60; // 8h de travail théorique
-	const currentMinutesOfDay = currentTime.getHours() * 60 + currentTime.getMinutes();
-	const elapsedDayMinutesRaw = currentMinutesOfDay - WORK_DAY_START_MINUTES;
-	const elapsedDayMinutes = Math.min(
-	Math.max(0, elapsedDayMinutesRaw),
-	WORK_DAY_DURATION_MINUTES,
-	);
-	const dayProgress =
-	WORK_DAY_DURATION_MINUTES > 0
-		? Math.round((elapsedDayMinutes / WORK_DAY_DURATION_MINUTES) * 100)
-		: 0;
-	const remainingMinutes = Math.max(0, WORK_DAY_DURATION_MINUTES - elapsedDayMinutes);
-	const remainingHours = Math.floor(remainingMinutes / 60);
-	const remainingMins = remainingMinutes % 60;
-	const remainingLabel =
-	remainingMinutes <= 0
-		? "Journée théorique terminée"
-		: `${remainingHours > 0 ? `${remainingHours}h ` : ""}${remainingMins} min`;
-	const dayTargetLabel = "8h (09:00 → 18:00)";
 
 	const today = new Date();
 	const todayISO = today.toISOString().split("T")[0];
@@ -362,9 +363,9 @@ export default function EmployeeDashboardClient({
 			</CardTitle>
 			<CardDescription>{currentStatusDescription}</CardDescription>
 		</CardHeader>
-		<CardContent className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-			<div className="space-y-3">
-			{todayPointage?.entryTime ? (
+			<CardContent className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+				<div className="space-y-3">
+				{todayPointage?.entryTime ? (
 				<p className="text-sm text-muted-foreground">
 				Arrivée : {todayPointage.entryTime}
 				{computedWorkedHours !== null &&
@@ -373,22 +374,17 @@ export default function EmployeeDashboardClient({
 			) : (
 				<p className="text-sm text-muted-foreground">
 				Vous n&apos;avez pas encore pointé aujourd&apos;hui.
-				</p>
-			)}
-			<div className="space-y-2">
-				<div className="flex items-center justify-between text-xs text-muted-foreground">
-				<span>Objectif du jour</span>
-				<span className="font-medium text-foreground">{dayTargetLabel}</span>
+					</p>
+				)}
+				<div className="space-y-2">
+					<div className="flex items-center justify-between text-xs text-muted-foreground">
+					<span>Objectif du jour</span>
+					<span className="font-medium text-foreground">
+						{workStartTime} → {workEndTime}
+					</span>
+					</div>
 				</div>
-				<Progress value={dayProgress} />
-				<div className="flex items-center justify-between text-xs text-muted-foreground">
-				<span>Progression de la journée</span>
-				<span>
-					{dayProgress}% • Temps restant estimé : {remainingLabel}
-				</span>
 				</div>
-			</div>
-			</div>
 			<div className="flex flex-col items-stretch gap-2 md:w-64">
 			<Button
 				onClick={handlePrimaryCta}

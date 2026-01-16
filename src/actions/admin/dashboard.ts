@@ -26,12 +26,20 @@ export async function getAdminDashboardStats() {
   };
 
   const departments = new Map<string, number>();
+  let unassignedCount = 0;
 
   for (const user of users) {
     countByRole[user.role] = (countByRole[user.role] || 0) + 1;
     if (user.department) {
       departments.set(user.department, (departments.get(user.department) || 0) + 1);
+    } else {
+      unassignedCount++;
     }
+  }
+
+  // Ajouter les non-affectés à la liste des départements
+  if (unassignedCount > 0) {
+    departments.set("Non affectés", unassignedCount);
   }
 
   return {

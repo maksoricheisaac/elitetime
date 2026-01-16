@@ -4,13 +4,16 @@ import prisma from "@/lib/prisma";
 import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from "@/lib/session";
 import { managerGetDashboardStats } from "@/actions/manager/dashboard";
 import { getAdminDashboardStats } from "@/actions/admin/dashboard";
+import { getSystemSettings } from "@/actions/admin/settings";
 import { getEmployeeTodayPointage, getEmployeeWeekStats } from "@/actions/employee/pointages";
+import { getEmployeeTodayBreaks } from "@/actions/employee/breaks";
 import EmployeeDashboardClient from "@/features/employee/dashboard";
 import ManagerDashboardClient from "@/features/manager/dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, UserCheck, Shield, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { PresenceEvolutionCard } from "@/components/charts/presence-evolution-card";
+import { PresenceChart } from "@/components/charts/presence-chart";
+import { RetardChart } from "@/components/charts/retard-chart";
 
 export default async function AppDashboardPage() {
   const cookieStore = await cookies();
@@ -32,9 +35,11 @@ export default async function AppDashboardPage() {
   const user = sanitizeUser(session.user);
 
   if (user.role === "employee") {
-    const [todayPointage, weekStats] = await Promise.all([
+    const [todayPointage, weekStats, systemSettings, todayBreaks] = await Promise.all([
       getEmployeeTodayPointage(user.id),
       getEmployeeWeekStats(user.id),
+      getSystemSettings(),
+      getEmployeeTodayBreaks(user.id),
     ]);
 
     return (
@@ -42,6 +47,9 @@ export default async function AppDashboardPage() {
         user={user}
         todayPointage={todayPointage}
         weekStats={weekStats}
+        workStartTime={systemSettings.workStartTime}
+        workEndTime={systemSettings.workEndTime}
+        initialBreaks={todayBreaks}
       />
     );
   }
@@ -63,10 +71,28 @@ export default async function AppDashboardPage() {
       const date = new Date();
       date.setDate(date.getDate() - (29 - i));
 
-      const presence = employees - 3 + ((i % 5) - 2);
+      const presents = Math.max(0, Math.min(employees, employees - 2 + ((i % 5) - 2)));
+      const absents = Math.max(0, 3 - ((i % 5) - 2));
+
       return {
-        date: date.getDate(),
-        presence: Math.max(0, Math.min(employees, presence)),
+        date: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+        presents,
+        absents,
+        total: presents + absents,
+      };
+    });
+
+    const retardData = Array.from({ length: 30 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (29 - i));
+      
+      const retards = Math.max(0, Math.floor(Math.random() * 8));
+      const moyenneRetard = 5 + Math.floor(Math.random() * 15);
+
+      return {
+        date: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+        retards,
+        moyenneRetard,
       };
     });
 
@@ -128,8 +154,19 @@ export default async function AppDashboardPage() {
           </Card>
         </div>
 
-        {/* Graphique d'évolution */}
-        <PresenceEvolutionCard data={monthData} />
+        {/* Graphiques */}
+        <div className="grid gap-6 md:grid-cols-2">
+          <PresenceChart 
+            data={monthData} 
+            title="Présences du mois" 
+            description="Nombre d'employés présents et absents par jour" 
+          />
+          <RetardChart 
+            data={retardData} 
+            title="Retards du mois" 
+            description="Nombre de retards et temps moyen d'arrivée par jour" 
+          />
+        </div>
 
         {/* Répartition par service */}
         <Card>
@@ -137,20 +174,20 @@ export default async function AppDashboardPage() {
             <CardTitle>Répartition par service</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-4 md:grid-cols-5">
-              {['Développement', 'Commercial', 'RH', 'Comptabilité', 'Direction'].map((dept) => {
-                const deptStats = stats.departments.find((d) => d.name === dept);
-                const count = deptStats?.count ?? 0;
+            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-4">
+              {stats.departments.map((dept) => {
+                const count = dept.count;
+                const percent = employees > 0 ? (count / employees) * 100 : 0;
                 return (
-                  <div key={dept} className="space-y-2">
+                  <div key={dept.name} className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">{dept}</span>
+                      <span className="text-sm font-medium">{dept.name}</span>
                       <Badge variant="secondary">{count}</Badge>
                     </div>
                     <div className="h-2 w-full rounded-full bg-muted">
                       <div
                         className="h-2 rounded-full bg-gradient-primary"
-                        style={{ width: `${(count / totalUsers) * 100}%` }}
+                        style={{ width: `${percent}%` }}
                       />
                     </div>
                   </div>

@@ -14,10 +14,31 @@ export async function GET() {
 
     const session = await prisma.session.findUnique({
       where: { sessionToken },
-      include: { user: true },
+      include: { 
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            firstname: true,
+            lastname: true,
+            role: true,
+            department: true,
+            position: true,
+            avatar: true,
+            status: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
     });
 
     if (!session || session.expiresAt < new Date()) {
+      return NextResponse.json({ user: null }, { status: 200 });
+    }
+
+    if (session.user.status !== 'active') {
       return NextResponse.json({ user: null }, { status: 200 });
     }
 
@@ -25,7 +46,10 @@ export async function GET() {
 
     return NextResponse.json({ user: safeUser }, { status: 200 });
   } catch (error) {
-    console.error("/api/me error:", error);
-    return NextResponse.json({ user: null }, { status: 200 });
+    console.error("[API /me] Erreur:", error);
+    return NextResponse.json(
+      { error: "Service temporairement indisponible" },
+      { status: 500 }
+    );
   }
 }

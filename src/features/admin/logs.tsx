@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Activity, Search, Filter } from "lucide-react";
 import type { ActivityLog, User } from "@/generated/prisma/client";
 
@@ -23,6 +25,9 @@ export default function LogsClient({ logs }: LogsClientProps) {
   const [filterUser, setFilterUser] = useState<string>("all");
 
   const [filterPeriod, setFilterPeriod] = useState<string>("all");
+
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const now = new Date();
 
@@ -63,6 +68,11 @@ export default function LogsClient({ logs }: LogsClientProps) {
     return matchSearch && matchType && matchUser;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedLogs = filteredLogs.slice(startIndex, startIndex + pageSize);
+
   const getTypeBadge = (type: string) => {
     const variants: Record<string, "default" | "secondary" | "outline"> = {
       auth: "default",
@@ -101,13 +111,12 @@ export default function LogsClient({ logs }: LogsClientProps) {
       </div>
 
       {/* Statistiques */}
-      <div className="grid gap-4 md:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-4">
         {[
           { type: "auth", label: "Connexions", count: periodFilteredLogs.filter((l) => l.type === "auth").length },
           { type: "pointage", label: "Pointages", count: periodFilteredLogs.filter((l) => l.type === "pointage").length },
           { type: "absence", label: "Absences", count: periodFilteredLogs.filter((l) => l.type === "absence").length },
-          { type: "user", label: "Utilisateurs", count: periodFilteredLogs.filter((l) => l.type === "user").length },
-          { type: "validation", label: "Validations", count: periodFilteredLogs.filter((l) => l.type === "validation").length },
+          { type: "user", label: "Utilisateurs", count: periodFilteredLogs.filter((l) => l.type === "user").length }
         ].map((stat) => (
           <Card key={stat.type}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -131,9 +140,9 @@ export default function LogsClient({ logs }: LogsClientProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div>
-              <Label htmlFor="search">Recherche</Label>
+          <div className="flex flex-row gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="search" className="text-sm text-muted-foreground">Recherche</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -145,26 +154,24 @@ export default function LogsClient({ logs }: LogsClientProps) {
                 />
               </div>
             </div>
-            <div>
-              <Label>Type d&apos;action</Label>
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Type d&apos;action</Label>
               <Select value={filterType} onValueChange={setFilterType}>
-                <SelectTrigger>
+                <SelectTrigger className="w-50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous</SelectItem>
                   <SelectItem value="auth">Connexions</SelectItem>
                   <SelectItem value="pointage">Pointages</SelectItem>
-                  <SelectItem value="absence">Absences</SelectItem>
                   <SelectItem value="user">Utilisateurs</SelectItem>
-                  <SelectItem value="validation">Validations</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Utilisateur</Label>
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Utilisateur</Label>
               <Select value={filterUser} onValueChange={setFilterUser}>
-                <SelectTrigger>
+                <SelectTrigger className="w-50">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -177,11 +184,11 @@ export default function LogsClient({ logs }: LogsClientProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div>
-              <Label>Période</Label>
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Période</Label>
               <Select value={filterPeriod} onValueChange={setFilterPeriod}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue className="w-50"/>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Toutes</SelectItem>
@@ -202,43 +209,81 @@ export default function LogsClient({ logs }: LogsClientProps) {
           <CardDescription>Toutes les actions importantes effectuées dans le système</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            {filteredLogs.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">Aucun log trouvé</p>
-            ) : (
-              filteredLogs.map((log) => {
-                const user = log.user;
-                return (
-                  <div
-                    key={log.id}
-                    className="flex items-start gap-4 rounded-lg border p-4 transition-colors hover:bg-muted/50"
+          {filteredLogs.length === 0 ? (
+            <p className="py-8 text-center text-muted-foreground">Aucun log trouvé</p>
+          ) : (
+            <>
+              <div className="w-full overflow-x-auto">
+                <Table className="min-w-[900px] text-sm">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Utilisateur</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Détails</TableHead>
+                      <TableHead>Date & heure</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedLogs.map((log) => {
+                      const user = log.user;
+                      return (
+                        <TableRow key={log.id} className="hover:bg-muted/50">
+                          <TableCell className="whitespace-nowrap">
+                            {user
+                              ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.email
+                              : "Utilisateur supprimé"}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            {getTypeBadge(log.type)}
+                          </TableCell>
+                          <TableCell className="font-medium">{log.action}</TableCell>
+                          <TableCell className="max-w-[360px] truncate" title={log.details}>
+                            {log.details}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                            {new Date(log.timestamp).toLocaleString("fr-FR", {
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              second: "2-digit",
+                            })}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+                <span>
+                  Page {currentPage} sur {totalPages} — {filteredLogs.length} log(s)
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
-                    <div className="text-3xl">{user?.avatar || "👤"}</div>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium">
-                          {user ? `${user.firstname || ""} ${user.lastname || ""}`.trim() : "Utilisateur supprimé"}
-                        </p>
-                        {getTypeBadge(log.type)}
-                      </div>
-                      <p className="text-sm font-semibold text-primary">{log.action}</p>
-                      <p className="text-sm text-muted-foreground">{log.details}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(log.timestamp).toLocaleString("fr-FR", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })
-            )}
-          </div>
+                    Précédent
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Suivant
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

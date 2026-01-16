@@ -1,6 +1,6 @@
 'use client';
 
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -24,6 +24,7 @@ import {
   Clock,
   UserIcon,
   CheckCircle,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import logo from '@public/logo/logo.png'
@@ -58,10 +59,9 @@ export const menuItems = [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/employees', icon: Users, label: 'Employés' },
       { to: '/pointages', icon: Clock, label: 'Pointages' },
-      { to: '/departements', icon: Settings, label: 'Départements' },
+      { to: '/départements', icon: Settings, label: 'Départements' },
       { to: '/postes', icon: Settings, label: 'Postes' },
-      { to: '/validations', icon: CheckCircle, label: 'Validations' },
-      { to: '/reports', icon: FileText, label: 'Rapports' },
+      
       { to: '/manager/profile', icon: UserIcon, label: 'Profil' },
     ]
   },
@@ -71,10 +71,10 @@ export const menuItems = [
       { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/employees', icon: Users, label: 'Employés' },
       { to: '/pointages', icon: Clock, label: 'Pointages' },
-      { to: '/departements', icon: Settings, label: 'Départements' },
+      { to: '/départements', icon: Settings, label: 'Départements' },
       { to: '/postes', icon: Settings, label: 'Postes' },
-      { to: '/validations', icon: CheckCircle, label: 'Validations' },
-      { to: '/reports', icon: FileText, label: 'Rapports' },
+      { to: '/reports', icon: FileText, label: 'Rapports'},
+      { to: '/permissions', icon: Shield, label: 'Permissions' },
       { to: '/settings', icon: Settings, label: 'Paramètres' },
       { to: '/logs', icon: Activity, label: 'Logs' },
       { to: '/profile', icon: UserIcon, label: 'Profil' },
@@ -99,7 +99,44 @@ export const AdminSidebar = memo(() => {
     }
   }
 
+  // État de chargement pour éviter le clignotement
+  const [isLoading, setIsLoading] = useState(true);
   
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return (
+      <Sidebar collapsible="icon" className="bg-cyan-600 border-cyan-600">
+        <SidebarHeader>
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton size="lg">
+                <div className="flex aspect-square size-20 items-center justify-center rounded-lg group-data-[collapsible=icon]:size-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-cyan-300 border-t-cyan-600"></div>
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                  <span className="truncate font-semibold">Chargement...</span>
+                </div>
+              </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+      <SidebarContent>
+        <div className="flex items-center justify-center h-32">
+          <div className="text-sm text-cyan-100">Chargement de la navigation...</div>
+        </div>
+      </SidebarContent>
+      <SidebarRail />
+    </Sidebar>
+    );
+  }
+
   return (
     <Sidebar collapsible="icon" className="bg-cyan-600 border-cyan-600">
       <SidebarHeader>
@@ -138,29 +175,33 @@ export const AdminSidebar = memo(() => {
                         asChild
                         isActive={isActive}
                         className={
-                          `transition-all duration-200 ease-out hover:translate-x-0.5 rounded-lg px-3 py-3 text-gray-100 ` +
+                          `transition-colors duration-200 ease-out rounded-lg px-3 py-3 text-gray-100 relative overflow-hidden ` +
                           (isActive
-                            ? 'border-l-4 border-white/80 bg-primary/10 text-white shadow-md'
-                            : 'text-muted-foreground hover:bg-sidebar-accent/60')
+                            ? 'border-l-4 border-white/80 bg-primary/10 text-white shadow-md before:absolute before:inset-0 before:bg-primary/20 before:-translate-y-full hover:before:translate-y-0'
+                            : 'text-muted-foreground hover:bg-sidebar-accent/60 before:absolute before:inset-0 before:bg-transparent before:-translate-y-full hover:before:translate-y-0 hover:before:bg-white/5')
                         }
                       >
                         <Link 
                           prefetch={false} 
                           href={mi.to}
                           aria-current={isActive ? 'page' : undefined}
-                          className="flex w-full items-center gap-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 text-white"
+                          className="flex w-full items-center gap-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 text-white relative overflow-hidden transition-all duration-300 ease-out before:absolute before:inset-0 before:bg-white/5 before:-translate-y-full hover:before:translate-y-0 hover:before:bg-white/10"
                         >
                           <span
                             className={
                               isActive
-                                ? 'h-2 w-2 rounded-full bg-primary transition-colors group-data-[collapsible=icon]:hidden'
-                                : 'h-2 w-2 rounded-full bg-transparent transition-colors group-data-[collapsible=icon]:hidden'
+                                ? 'h-2 w-2 rounded-full bg-primary transition-all duration-300 group-data-[collapsible=icon]:hidden'
+                                : 'h-2 w-2 rounded-full bg-transparent transition-all duration-300 group-data-[collapsible=icon]:hidden'
                             }
                           />
-                          <Icon className="h-4 w-4 shrink-0 text-white font-semibold" />
-                          <span className="truncate group-data-[collapsible=icon]:hidden text-white font-semibold">
+                          <Icon className="h-4 w-4 shrink-0 text-white font-semibold transition-transform duration-300 group-hover:scale-110" />
+                          <span className="truncate group-data-[collapsible=icon]:hidden text-white font-semibold transition-all duration-300 group-hover:text-white/90">
                             {mi.label}
                           </span>
+                          {/* Badge indicateur pour certains éléments */}
+                          {(mi.to === '/permissions' || mi.to === '/employees' || mi.to === '/reports') && (
+                            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                          )}
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -183,3 +224,5 @@ export const AdminSidebar = memo(() => {
 });
 
 AdminSidebar.displayName = 'AdminSidebar';
+
+export default AdminSidebar;

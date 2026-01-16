@@ -89,7 +89,7 @@ async function deletePosition(formData: FormData) {
 export default async function AppPositionsPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -131,7 +131,7 @@ export default async function AppPositionsPage({
   const filteredPositions =
     selectedDepartment === 'all'
       ? positions
-      : positions.filter((p: any) => p.departmentId === selectedDepartment);
+      : positions.filter((p: { id: string; name: string; description: string | null; departmentId: string; department: { name: string } }) => p.departmentId === selectedDepartment);
 
   return (
     <div className="space-y-6">
@@ -226,7 +226,7 @@ export default async function AppPositionsPage({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredPositions.map((position: any) => (
+                {filteredPositions.map((position: { id: string; name: string; description: string | null; departmentId: string; department: { name: string } }) => (
                   <TableRow
                     key={position.id}
                     className="border-b last:border-b-0 transition-colors hover:bg-muted/40"

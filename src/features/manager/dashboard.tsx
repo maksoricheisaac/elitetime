@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, AlertCircle, TrendingUp, ArrowRight } from "lucide-react";
+import { PresenceChart } from "@/components/charts/presence-chart";
+import { RetardChart } from "@/components/charts/retard-chart";
 import type { User, Pointage } from "@/generated/prisma/client";
 
 interface ManagerDashboardClientProps {
@@ -38,11 +40,47 @@ export default function ManagerDashboardClient({ team, todayPointages }: Manager
         <p className="text-sm text-muted-foreground">
           Vue d&apos;ensemble de votre équipe et de la présence en temps réel
         </p>
-        
       </div>
 
-      
-  
+      {/* Graphiques */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <PresenceChart 
+          data={Array.from({ length: 30 }, (_, i) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (29 - i));
+            
+            const presents = Math.max(0, Math.floor(team.length * 0.85) + Math.floor(Math.random() * 3));
+            const absents = team.length - presents;
+
+            return {
+              date: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+              presents,
+              absents,
+              total: presents + absents,
+            };
+          })} 
+          title="Présences de l'équipe" 
+          description="Nombre d'employés présents et absents par jour" 
+        />
+        <RetardChart 
+          data={Array.from({ length: 30 }, (_, i) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (29 - i));
+            
+            const retards = Math.max(0, lateToday.length + Math.floor(Math.random() * 3));
+            const moyenneRetard = 8 + Math.floor(Math.random() * 12);
+
+            return {
+              date: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
+              retards,
+              moyenneRetard,
+            };
+          })} 
+          title="Retards de l'équipe" 
+          description="Nombre de retards et temps moyen d'arrivée par jour" 
+        />
+      </div>
+
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

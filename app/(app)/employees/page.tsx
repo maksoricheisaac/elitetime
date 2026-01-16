@@ -26,6 +26,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { EmployeesFilters } from '@/features/admin/employees-filters';
+import { EmployeesUpdateNotifier } from '@/features/admin/employees-update-notifier';
 
 async function updateEmployee(formData: FormData) {
   'use server';
@@ -61,12 +63,13 @@ async function updateEmployee(formData: FormData) {
   });
 
   revalidatePath('/employees');
+  redirect('/employees?updated=1');
 }
 
 export default async function AppEmployeesPage({
   searchParams,
 }: {
-  searchParams?: { [key: string]: string | string[] | undefined };
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -110,19 +113,19 @@ export default async function AppEmployeesPage({
     orderBy: { name: 'asc' },
   });
 
-  const departmentParam = searchParams?.department;
+  const departmentParam = (await searchParams)?.department;
   const selectedDepartment =
     typeof departmentParam === 'string' && departmentParam.length > 0
       ? departmentParam
       : 'all';
 
-  const roleParam = searchParams?.role;
+  const roleParam = (await searchParams)?.role;
   const selectedRole =
     typeof roleParam === 'string' && roleParam.length > 0
       ? roleParam
       : 'all';
 
-  const searchParam = searchParams?.search;
+  const searchParam = (await searchParams)?.search;
   const searchTerm =
     typeof searchParam === 'string' && searchParam.trim().length > 0
       ? searchParam.trim().toLowerCase()
@@ -147,243 +150,194 @@ export default async function AppEmployeesPage({
   });
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          Employés
+    <>
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <div className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            Employés
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight">Gestion des employés</h1>
+          <p className="text-sm text-muted-foreground">
+            Recherchez et filtrez les employés par service, rôle et informations de contact.
+          </p>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">Gestion des employés</h1>
-        <p className="text-sm text-muted-foreground">
-          Recherchez et filtrez les employés par service, rôle et informations de contact.
-        </p>
-      </div>
+        <EmployeesUpdateNotifier />
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
-        <form className="flex flex-wrap items-center gap-3" method="GET">
-          <div className="space-y-1">
-            <label htmlFor="search" className="text-sm text-muted-foreground">
-              Recherche
-            </label>
-            <div className="relative">
-              <svg
-                className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="11" cy="11" r="8" />
-                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <Input
-                id="search"
-                name="search"
-                placeholder="Nom, email, poste ou département"
-                defaultValue={typeof searchParam === 'string' ? searchParam : ''}
-                className="h-9 w-52 pl-9 text-sm md:w-64"
-              />
-            </div>
-          </div>
+        <EmployeesFilters
+          departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+        />
 
-          {departments.length > 0 && (
-            <>
-              <label htmlFor="department" className="text-sm text-muted-foreground">
-                Département
-              </label>
-              <select
-                id="department"
-                name="department"
-                defaultValue={selectedDepartment}
-                className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
-                <option value="all">Tous</option>
-                {departments.map((dept) => (
-                  <option key={dept.id} value={dept.name}>
-                    {dept.name}
-                  </option>
-                ))}
-              </select>
-            </>
-          )}
-          <label htmlFor="role" className="text-sm text-muted-foreground">
-            Rôle
-          </label>
-          <select
-            id="role"
-            name="role"
-            defaultValue={selectedRole}
-            className="h-9 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          >
-            <option value="all">Tous</option>
-            <option value="employee">Employé</option>
-            <option value="manager">Manager</option>
-            <option value="admin">Admin</option>
-          </select>
-        </form>
-      </div>
-
-      <Card className="border border-border/80 bg-card/90 shadow-sm">
-        <CardHeader>
-          <CardTitle>Liste des employés ({filteredEmployees.length})</CardTitle>
-          <CardDescription>
-            Vue d&apos;ensemble des employés. L&apos;édition détaillée est réservée aux administrateurs.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="w-full overflow-x-auto">
-            <Table className="min-w-[900px] w-full text-sm">
-              <TableHeader className="bg-muted/60">
-                <TableRow>
-                  <TableHead className="px-3 py-2 text-left">Nom</TableHead>
-                  <TableHead className="px-3 py-2 text-left">Email</TableHead>
-                  <TableHead className="px-3 py-2 text-left">Rôle</TableHead>
-                  <TableHead className="px-3 py-2 text-left">Département</TableHead>
-                  <TableHead className="px-3 py-2 text-left">Poste</TableHead>
-                  <TableHead className="px-3 py-2 text-left">Statut</TableHead>
-                  <TableHead className="px-3 py-2 text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredEmployees.map((e) => (
-                  <TableRow
-                    key={e.id}
-                    className="border-b last:border-b-0 transition-colors hover:bg-muted/40"
-                  >
-                    <TableCell className="px-3 py-2 font-medium">
-                      {e.firstname} {e.lastname}
-                    </TableCell>
-                    <TableCell className="px-3 py-2 text-xs">{e.email || '-'}</TableCell>
-                    <TableCell className="px-3 py-2">
-                      <Badge variant="outline" className="text-xs">
-                        {e.role === 'employee' ? 'Employé' : e.role === 'manager' ? 'Manager' : 'Admin'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-2">{e.department || '-'}</TableCell>
-                    <TableCell className="px-3 py-2">{e.position || '-'}</TableCell>
-                    <TableCell className="px-3 py-2">
-                      <Badge variant={e.status === 'active' ? 'default' : 'secondary'} className="text-xs">
-                        {e.status === 'active' ? 'Actif' : 'Inactif'}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="px-3 py-2 text-right">
-                      {user.role === 'admin' && (
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button type="button" variant="outline" size="sm">
-                              Modifier
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Modifier l&apos;employé</DialogTitle>
-                              <DialogDescription>
-                                Mettez à jour les informations de l&apos;employé.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <form action={updateEmployee} className="space-y-4">
-                              <input type="hidden" name="id" value={e.id} />
-                              <div className="space-y-2">
-                                <Label htmlFor={`firstname-${e.id}`}>Prénom</Label>
-                                <Input
-                                  id={`firstname-${e.id}`}
-                                  name="firstname"
-                                  defaultValue={e.firstname ?? ''}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`lastname-${e.id}`}>Nom</Label>
-                                <Input
-                                  id={`lastname-${e.id}`}
-                                  name="lastname"
-                                  defaultValue={e.lastname ?? ''}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`email-${e.id}`}>Email</Label>
-                                <Input
-                                  id={`email-${e.id}`}
-                                  name="email"
-                                  type="email"
-                                  defaultValue={e.email ?? ''}
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`role-${e.id}`}>Rôle</Label>
-                                <Select defaultValue={e.role} name="role">
-                                  <SelectTrigger id={`role-${e.id}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="employee">Employé</SelectItem>
-                                    <SelectItem value="manager">Manager</SelectItem>
-                                    <SelectItem value="admin">Admin</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`department-${e.id}`}>Département</Label>
-                                <Select defaultValue={e.department ?? ''} name="department">
-                                  <SelectTrigger id={`department-${e.id}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none">Aucun</SelectItem>
-                                    {departments.map((dept) => (
-                                      <SelectItem key={dept.id} value={dept.name}>
-                                        {dept.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`position-${e.id}`}>Poste</Label>
-                                <Select defaultValue={e.position ?? ''} name="position">
-                                  <SelectTrigger id={`position-${e.id}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none">Aucun</SelectItem>
-                                    {positions.map((p) => (
-                                      <SelectItem key={p.id} value={p.name}>
-                                        {p.name}
-                                        {p.department ? ` (${p.department.name})` : ''}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`status-${e.id}`}>Statut</Label>
-                                <Select defaultValue={e.status} name="status">
-                                  <SelectTrigger id={`status-${e.id}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="active">Actif</SelectItem>
-                                    <SelectItem value="inactive">Inactif</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="flex justify-end gap-2">
-                                <Button type="submit">Enregistrer</Button>
-                              </div>
-                            </form>
-                          </DialogContent>
-                        </Dialog>
-                      )}
-                    </TableCell>
+        <Card className="border border-border/80 bg-card/90 shadow-sm">
+          <CardHeader>
+            <CardTitle>Liste des employés ({filteredEmployees.length})</CardTitle>
+            <CardDescription>
+              Vue d&apos;ensemble des employés. L&apos;édition détaillée est réservée aux administrateurs.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="w-full overflow-x-auto">
+              <Table className="min-w-[900px] w-full text-sm">
+                <TableHeader>
+                  <TableRow className="bg-muted/60">
+                    <TableHead className="px-3 py-2 text-left">Nom</TableHead>
+                    <TableHead className="px-3 py-2 text-left">Email</TableHead>
+                    <TableHead className="px-3 py-2 text-left">Rôle</TableHead>
+                    <TableHead className="px-3 py-2 text-left">Département</TableHead>
+                    <TableHead className="px-3 py-2 text-left">Poste</TableHead>
+                    <TableHead className="px-3 py-2 text-left">Statut</TableHead>
+                    <TableHead className="px-3 py-2 text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                </TableHeader>
+                <TableBody>
+                  {filteredEmployees.map((e) => (
+                    <TableRow
+                      key={e.id}
+                      className="border-b last:border-b-0 transition-colors hover:bg-muted/40"
+                    >
+                      <TableCell className="px-3 py-2 font-medium">
+                        {e.firstname} {e.lastname}
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-xs">{e.email || '-'}</TableCell>
+                      <TableCell className="px-3 py-2">
+                        <Badge variant="outline" className="text-xs">
+                          {e.role === 'employee' ? 'Employé' : e.role === 'manager' ? 'Manager' : 'Admin'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-3 py-2">{e.department || '-'}</TableCell>
+                      <TableCell className="px-3 py-2">{e.position || '-'}</TableCell>
+                      <TableCell className="px-3 py-2">
+                        <Badge variant={e.status === 'active' ? 'default' : 'secondary'} className="text-xs">
+                          {e.status === 'active' ? 'Actif' : 'Inactif'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-3 py-2 text-right">
+                        {user.role === 'admin' && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button type="button" variant="outline" size="sm">
+                                Modifier
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-2xl">
+                              <DialogHeader>
+                                <DialogTitle>Modifier l&apos;employé</DialogTitle>
+                                <DialogDescription>
+                                  Mettez à jour les informations de l&apos;employé.
+                                </DialogDescription>
+                              </DialogHeader>
+                              <form action={updateEmployee} className="space-y-6">
+                                <input type="hidden" name="id" value={e.id} />
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`firstname-${e.id}`}>Prénom</Label>
+                                    <Input
+                                      id={`firstname-${e.id}`}
+                                      name="firstname"
+                                      defaultValue={e.firstname ?? ''}
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`lastname-${e.id}`}>Nom</Label>
+                                    <Input
+                                      id={`lastname-${e.id}`}
+                                      name="lastname"
+                                      defaultValue={e.lastname ?? ''}
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  <Label htmlFor={`email-${e.id}`}>Email</Label>
+                                  <Input
+                                    id={`email-${e.id}`}
+                                    name="email"
+                                    type="email"
+                                    defaultValue={e.email ?? ''}
+                                  />
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`role-${e.id}`}>Rôle</Label>
+                                    <Select defaultValue={e.role} name="role">
+                                      <SelectTrigger id={`role-${e.id}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="employee">Employé</SelectItem>
+                                        <SelectItem value="manager">Manager</SelectItem>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`status-${e.id}`}>Statut</Label>
+                                    <Select defaultValue={e.status} name="status">
+                                      <SelectTrigger id={`status-${e.id}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="active">Actif</SelectItem>
+                                        <SelectItem value="inactive">Inactif</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`department-${e.id}`}>Département</Label>
+                                    <Select defaultValue={e.department ?? ''} name="department">
+                                      <SelectTrigger id={`department-${e.id}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none">Aucun</SelectItem>
+                                        {departments.map((dept) => (
+                                          <SelectItem key={dept.id} value={dept.name}>
+                                            {dept.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <Label htmlFor={`position-${e.id}`}>Poste</Label>
+                                    <Select defaultValue={e.position ?? ''} name="position">
+                                      <SelectTrigger id={`position-${e.id}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none">Aucun</SelectItem>
+                                        {positions.map((p) => (
+                                          <SelectItem key={p.id} value={p.name}>
+                                            {p.name}
+                                            {p.department ? ` (${p.department.name})` : ''}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end gap-2">
+                                  <Button type="submit">Enregistrer</Button>
+                                </div>
+                              </form>
+                            </DialogContent>
+                          </Dialog>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </>
   );
 }

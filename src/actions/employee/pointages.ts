@@ -126,10 +126,68 @@ export async function startEmployeePointage(userId: string) {
       userId,
       isActive: true,
     },
+    orderBy: {
+      date: "desc",
+    },
   });
 
   if (existingActive) {
-    return existingActive;
+    const now = new Date();
+    const activeDate = new Date(existingActive.date as unknown as string);
+
+    const sameDay = now.toDateString() === activeDate.toDateString();
+
+    // Si le pointage actif est sur un jour précédent, on le clôt automatiquement
+    if (!sameDay) {
+      const { maxSessionEndTime, breakDuration } = await getSystemSettingsOrDefaults();
+      const [maxH, maxM] = parseTimeToHM(maxSessionEndTime);
+
+      const cutoff = new Date(activeDate);
+      cutoff.setHours(maxH, maxM, 0, 0);
+
+      if (existingActive.entryTime) {
+        const entryDate = new Date(existingActive.date as unknown as string);
+        const [h, m] = existingActive.entryTime.split(":");
+        entryDate.setHours(Number(h), Number(m), 0, 0);
+
+        let endDate = cutoff;
+        if (entryDate > cutoff) {
+          endDate = entryDate;
+        }
+
+        const exitTime = endDate.toTimeString().slice(0, 5);
+
+        let durationMinutes = Math.max(
+          0,
+          Math.floor((endDate.getTime() - entryDate.getTime()) / 60000),
+        );
+
+        if (durationMinutes > breakDuration) {
+          durationMinutes -= breakDuration;
+        }
+
+        await prisma.pointage.update({
+          where: { id: existingActive.id },
+          data: {
+            exitTime,
+            duration: durationMinutes,
+            isActive: false,
+          },
+        });
+      } else {
+        // Pas d'heure d'entrée : on se contente de désactiver le pointage
+        await prisma.pointage.update({
+          where: { id: existingActive.id },
+          data: {
+            isActive: false,
+          },
+        });
+      }
+      // On continue ensuite pour créer un nouveau pointage pour aujourd'hui
+    } else {
+      // Même jour : on renvoie simplement le pointage actif existant
+      return existingActive;
+    }
   }
 
   const now = new Date();

@@ -6,17 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import Link from "next/link";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Eye } from "lucide-react";
 import type { User, Pointage, Absence } from "@/generated/prisma/client";
+import { Label } from "@/components/ui/label";
 
 interface ManagerPointagesClientProps {
   team: User[];
@@ -151,14 +145,19 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
-        <Input
-          placeholder="Rechercher un employé..."
-          className="w-full md:w-64"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
+        <div className="space-y-2">
+          <Label className="text-sm text-muted-foreground">Rechercher un employé</Label>
+          <Input
+            placeholder="Nom, prénom"
+            className="w-full md:w-64"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <div className="space-y-2">
+          <Label className="text-sm text-muted-foreground">Rechercher par statut</Label>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Filtrer par statut" />
           </SelectTrigger>
@@ -168,6 +167,7 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
             <SelectItem value="absent">Absents</SelectItem>
           </SelectContent>
         </Select>
+        </div>
 
         {departments.length > 1 && (
           <Select
@@ -245,135 +245,12 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
                   <span className="text-sm">{employee.department}</span>
                 </div>
 
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full">
-                      <Eye className="mr-2 h-4 w-4" />
-                      Voir détails
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto border border-border/80 bg-card shadow-lg">
-                    <DialogHeader>
-                      <DialogTitle>
-                        {employee.firstname} {employee.lastname}
-                      </DialogTitle>
-                      <DialogDescription>
-                        {employee.position} - {employee.department}
-                      </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="space-y-6">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">
-                            Derniers pointages
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="w-full overflow-x-auto">
-                            <Table className="min-w-[640px]">
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Date</TableHead>
-                                  <TableHead>Entrée</TableHead>
-                                  <TableHead>Sortie</TableHead>
-                                  <TableHead>Durée</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {employeePointages.map((p) => {
-                                  const d = new Date(
-                                    p.date as unknown as string
-                                  );
-                                  return (
-                                    <TableRow key={p.id}>
-                                      <TableCell>
-                                        {d.toLocaleDateString("fr-FR")}
-                                      </TableCell>
-                                      <TableCell>{p.entryTime || "-"}</TableCell>
-                                      <TableCell>{p.exitTime || "-"}</TableCell>
-                                      <TableCell>
-                                        {p.duration > 0
-                                          ? `${Math.floor(p.duration / 60)}h ${
-                                              p.duration % 60
-                                            }m`
-                                          : "-"}
-                                      </TableCell>
-                                    </TableRow>
-                                  );
-                                })}
-                              </TableBody>
-                            </Table>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">Absences</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {employeeAbsences.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">
-                              Aucune absence enregistrée
-                            </p>
-                          ) : (
-                            <div className="w-full overflow-x-auto">
-                              <Table className="min-w-[640px]">
-                                <TableHeader>
-                                  <TableRow>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead>Du</TableHead>
-                                    <TableHead>Au</TableHead>
-                                    <TableHead>Statut</TableHead>
-                                  </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                  {employeeAbsences.map((a) => {
-                                    const start = new Date(
-                                      a.startDate as unknown as string
-                                    );
-                                    const end = new Date(
-                                      a.endDate as unknown as string
-                                    );
-                                    return (
-                                      <TableRow key={a.id}>
-                                        <TableCell className="capitalize">
-                                          {a.type}
-                                        </TableCell>
-                                        <TableCell>
-                                          {start.toLocaleDateString("fr-FR")}
-                                        </TableCell>
-                                        <TableCell>
-                                          {end.toLocaleDateString("fr-FR")}
-                                        </TableCell>
-                                        <TableCell>
-                                          <Badge
-                                            variant={
-                                              a.status === "approved"
-                                                ? "default"
-                                                : "secondary"
-                                            }
-                                          >
-                                            {a.status === "approved"
-                                              ? "Validé"
-                                              : a.status === "rejected"
-                                              ? "Refusé"
-                                              : "En attente"}
-                                          </Badge>
-                                        </TableCell>
-                                      </TableRow>
-                                    );
-                                  })}
-                                </TableBody>
-                              </Table>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                <Button variant="outline" className="w-full" asChild>
+                  <Link href={`/pointages/${employee.id}`}>
+                    <Eye className="mr-2 h-4 w-4" />
+                    Voir détails
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           );
