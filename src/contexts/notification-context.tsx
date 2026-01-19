@@ -15,36 +15,51 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export const NotificationProvider = ({ children }: { children: ReactNode }) => {
   const showSuccess = (message: string) => {
     toast.success(message, {
-      className:
-        'border border-emerald-200 bg-emerald-50 text-emerald-900 dark:border-emerald-700/70 dark:bg-emerald-900/30 dark:text-emerald-100',
+      unstyled: true,
+      classNames: {
+        toast:
+          'flex items-center gap-3 rounded-lg border border-emerald-700 bg-emerald-600 px-4 py-3 text-white shadow-lg font-semibold',
+      },
     });
   };
 
   const showError = (message: string) => {
     toast.error(message, {
-      className:
-        'border border-destructive/70 bg-destructive/10 text-destructive dark:border-destructive/60 dark:bg-destructive/20 dark:text-destructive-foreground',
+      unstyled: true,
+      classNames: {
+        toast:
+          'flex items-center gap-3 rounded-lg border border-red-800 bg-red-600 px-4 py-3 text-white shadow-lg text font-semibold',
+      },
     });
   };
 
   const showInfo = (message: string) => {
     toast.info(message, {
-      className:
-        'border border-sky-200 bg-sky-50 text-sky-900 dark:border-sky-700/70 dark:bg-sky-900/30 dark:text-sky-100',
+      unstyled: true,
+      classNames: {
+        toast:
+          'flex items-center gap-3 rounded-lg border border-sky-800 bg-sky-600 px-4 py-3 text-white shadow-lg font-semibold',
+      },
     });
   };
 
   const showWarning = (message: string) => {
     toast.warning(message, {
-      className:
-        'border border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700/70 dark:bg-amber-900/30 dark:text-amber-100',
+      unstyled: true,
+      classNames: {
+        toast:
+          'flex items-center gap-3 rounded-lg border border-amber-800 bg-amber-500 px-4 py-3 text-white shadow-lg font-semibold',
+      },
     });
   };
 
   const showLoading = (message: string) => {
     toast.loading(message, {
-      className:
-        'border border-muted/70 bg-muted text-foreground dark:border-muted/60 dark:bg-muted/40',
+      unstyled: true,
+      classNames: {
+        toast:
+          'flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-700 px-4 py-3 text-white shadow-lg font-semibold',
+      },
     });
   };
 

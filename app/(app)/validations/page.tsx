@@ -1,30 +1,13 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from '@/lib/session';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { requireNavigationAccessById } from '@/lib/navigation-guard';
 
 export default async function AppValidationsPage() {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!sessionToken) {
-    redirect('/login');
-  }
-
-  const session = await prisma.session.findUnique({
-    where: { sessionToken },
-    include: { user: true },
-  });
-
-  if (!session || session.expiresAt < new Date() || !session.user) {
-    redirect('/login');
-  }
-
-  const user = sanitizeUser(session.user);
-
-  if (!['manager', 'admin'].includes(user.role)) {
-    redirect(getDashboardPath(user.role));
+  try {
+    await requireNavigationAccessById('validations');
+  } catch {
+    redirect('/dashboard');
   }
 
   return (

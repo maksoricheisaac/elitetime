@@ -1,13 +1,12 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from "@/lib/session";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
+import { requireNavigationAccessById } from "@/lib/navigation-guard";
 
 interface PointageDetailPageProps {
   params: Promise<{ employeeId: string }>;
@@ -17,26 +16,10 @@ interface PointageDetailPageProps {
 export default async function PointageDetailPage({ params, searchParams }: PointageDetailPageProps) {
   const { employeeId } = await params;
 
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const auth = await requireNavigationAccessById('pointages');
 
-  if (!sessionToken) {
-    redirect("/login");
-  }
-
-  const session = await prisma.session.findUnique({
-    where: { sessionToken },
-    include: { user: true },
-  });
-
-  if (!session || session.expiresAt < new Date() || !session.user) {
-    redirect("/login");
-  }
-
-  const user = sanitizeUser(session.user);
-
-  if (!["manager", "admin"].includes(user.role)) {
-    redirect(getDashboardPath(user.role));
+  if (!["manager", "admin"].includes(auth.user.role)) {
+    redirect('/dashboard');
   }
 
   const employee = await prisma.user.findUnique({

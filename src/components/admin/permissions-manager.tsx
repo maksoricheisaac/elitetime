@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,7 @@ import {
 import { Checkbox } from '@/components/ui/checkbox';
 import { Search, Plus, X, Shield, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNotification } from '@/contexts/notification-context';
 
 interface Permission {
   id: string;
@@ -58,7 +59,8 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
-
+  const [selectedPermissionIds, setSelectedPermissionIds] = useState<Set<string>>(new Set());
+  const { showSuccess, showError } = useNotification();
   const categories = Array.from(new Set(permissions.map(p => p.category))).sort();
 
   const filteredUsers = users.filter(user =>
@@ -71,41 +73,95 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
     selectedCategory === 'all' || permission.category === selectedCategory
   );
 
-  const userPermissionIds = selectedUser 
-    ? selectedUser.userPermissions.map(up => up.permissionId)
-    : [];
+  const userPermissionIds = useMemo(() => {
+    if (!selectedUser) return [];
+    return selectedUser.userPermissions.map((up) => up.permissionId);
+  }, [selectedUser]);
 
-  const handlePermissionToggle = async (permissionId: string, isChecked: boolean) => {
+  const userPermissionIdsSet = useMemo(
+    () => new Set(userPermissionIds),
+    [userPermissionIds],
+  );
+
+  useEffect(() => {
+    // Quand on change d'utilisateur, on initialise la sélection avec les permissions actuelles
+    setSelectedPermissionIds(new Set(userPermissionIds));
+  }, [selectedUser, userPermissionIds]);
+
+  const isDirty = useMemo(() => {
+    if (!selectedUser) return false;
+    if (selectedPermissionIds.size !== userPermissionIdsSet.size) return true;
+    for (const id of selectedPermissionIds) {
+      if (!userPermissionIdsSet.has(id)) return true;
+    }
+    return false;
+  }, [selectedUser, selectedPermissionIds, userPermissionIdsSet]);
+
+  const handlePermissionToggle = (permissionId: string, isChecked: boolean) => {
+    setSelectedPermissionIds((prev) => {
+      const next = new Set(prev);
+      if (isChecked) next.add(permissionId);
+      else next.delete(permissionId);
+      return next;
+    });
+  };
+
+  const applyChanges = async () => {
     if (!selectedUser) return;
+
+    const toAdd: string[] = [];
+    const toRemove: string[] = [];
+
+    for (const id of selectedPermissionIds) {
+      if (!userPermissionIdsSet.has(id)) toAdd.push(id);
+    }
+    for (const id of userPermissionIdsSet) {
+      if (!selectedPermissionIds.has(id)) toRemove.push(id);
+    }
+
+    if (toAdd.length === 0 && toRemove.length === 0) return;
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/admin/users/${selectedUser.id}/permissions`, {
-        method: isChecked ? 'POST' : 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ permissionId }),
-      });
+      const requests = [
+        ...toAdd.map((permissionId) =>
+          fetch(`/api/admin/users/${selectedUser.id}/permissions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ permissionId }),
+          }),
+        ),
+        ...toRemove.map((permissionId) =>
+          fetch(`/api/admin/users/${selectedUser.id}/permissions`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ permissionId }),
+          }),
+        ),
+      ];
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+      const results = await Promise.all(requests);
+
+      const firstError = results.find((r) => !r.ok);
+      if (firstError) {
+        const errorData = await firstError.json().catch(() => ({}));
         const errorMessage = errorData.error || 'Erreur lors de la mise à jour des permissions';
         throw new Error(errorMessage);
       }
 
-      toast.success(
-        isChecked 
-          ? 'Permission accordée avec succès' 
-          : 'Permission révoquée avec succès'
-      );
+      showSuccess('Permissions mises à jour avec succès');
+
+      // Recharger les permissions globalement pour mettre à jour la sidebar si nécessaire
+      if ((window as unknown as { refetchPermissions?: () => Promise<void> }).refetchPermissions) {
+        await (window as unknown as { refetchPermissions: () => Promise<void> }).refetchPermissions();
+      }
 
       // Refresh the page to show updated permissions
       window.location.reload();
     } catch (error) {
-      console.error('Error updating permission:', error);
+      console.error('Error updating permissions:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la mise à jour des permissions';
-      toast.error(errorMessage);
+      showError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -224,6 +280,29 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
             </div>
           ) : (
             <div className="space-y-6 max-h-96 overflow-y-auto">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm text-muted-foreground">
+                  {selectedPermissionIds.size} sélectionnée(s)
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedPermissionIds(new Set(userPermissionIds))}
+                    disabled={isLoading || selectedUser.role === 'admin' || !isDirty}
+                  >
+                    Réinitialiser
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={applyChanges}
+                    disabled={isLoading || selectedUser.role === 'admin' || !isDirty}
+                  >
+                    Enregistrer
+                  </Button>
+                </div>
+              </div>
+
               {Object.entries(groupedPermissions).map(([category, categoryPermissions]) => (
                 <div key={category} className="space-y-3">
                   <h4 className="font-medium text-sm text-muted-foreground uppercase tracking-wide">
@@ -238,7 +317,7 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
                         <div className="flex items-center gap-3">
                           <Checkbox
                             id={permission.id}
-                            checked={userPermissionIds.includes(permission.id)}
+                            checked={selectedPermissionIds.has(permission.id)}
                             onCheckedChange={(checked) =>
                               handlePermissionToggle(permission.id, checked as boolean)
                             }
@@ -255,7 +334,7 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
                             )}
                           </div>
                         </div>
-                        {userPermissionIds.includes(permission.id) && (
+                        {selectedPermissionIds.has(permission.id) && (
                           <Badge variant="default" className="text-xs">
                             Actif
                           </Badge>

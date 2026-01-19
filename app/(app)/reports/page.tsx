@@ -1,15 +1,12 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from '@/lib/session';
-import { requirePermission } from '@/lib/security/rbac';
 import { managerGetReportsData } from '@/actions/manager/reports';
 import ManagerReportsClient from '@/features/manager/reports';
+import { requireNavigationAccessById } from '@/lib/navigation-guard';
 
 export default async function AppReportsPage() {
   try {
-    // Vérifier si l'utilisateur a la permission de voir les rapports
-    const auth = await requirePermission('view_reports')();
+    const auth = await requireNavigationAccessById('reports');
     const user = auth.user;
 
   if (user.role === 'manager') {

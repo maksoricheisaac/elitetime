@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect } from 'react';
+import { memo, useState, useEffect, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -15,18 +15,9 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
-import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Activity,
-  Settings,
-  Clock,
-  UserIcon,
-  CheckCircle,
-  Shield,
-} from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
+import { useUserPermissions } from '@/hooks/use-user-permissions';
+import { navigationRegistry, type NavigationItem } from '@/lib/navigation-registry';
 import logo from '@public/logo/logo.png'
 import Image from 'next/image';
 
@@ -43,61 +34,62 @@ import Image from 'next/image';
 //   { title: 'Settings', icon: Settings, href: '#settings' },
 // ];
 
-export const menuItems = [
-  {
-    role: 'employee',
-    menu: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/pointages', icon: Clock, label: 'Mes pointages' },
-      // { to: '/employee/absences', icon: Calendar, label: 'Mes absences' },
-      { to: '/profile', icon: UserIcon, label: 'Profil' },
-    ]
-  },
-  {
-    role: 'manager',
-    menu: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/employees', icon: Users, label: 'Employés' },
-      { to: '/pointages', icon: Clock, label: 'Pointages' },
-      { to: '/départements', icon: Settings, label: 'Départements' },
-      { to: '/postes', icon: Settings, label: 'Postes' },
-      
-      { to: '/manager/profile', icon: UserIcon, label: 'Profil' },
-    ]
-  },
-  {
-    role: 'admin',
-    menu: [
-      { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/employees', icon: Users, label: 'Employés' },
-      { to: '/pointages', icon: Clock, label: 'Pointages' },
-      { to: '/départements', icon: Settings, label: 'Départements' },
-      { to: '/postes', icon: Settings, label: 'Postes' },
-      { to: '/reports', icon: FileText, label: 'Rapports'},
-      { to: '/permissions', icon: Shield, label: 'Permissions' },
-      { to: '/settings', icon: Settings, label: 'Paramètres' },
-      { to: '/logs', icon: Activity, label: 'Logs' },
-      { to: '/profile', icon: UserIcon, label: 'Profil' },
-    ]
-  }
-]
-
 export const AdminSidebar = memo(() => {
   const { user } = useAuth()
+  const { hasPermission, loading: permissionsLoading, refetch: refetchPermissions } = useUserPermissions();
   const pathname = usePathname();
 
-  const currentMenu = menuItems.find((m) => m.role === user?.role)?.menu ?? [];
+  const shouldShowMenuItem = useCallback((item: NavigationItem) => {
+    if (!user) return false;
+    if (permissionsLoading) return false;
+
+    if (item.allowedRoles && !item.allowedRoles.includes(user.role)) {
+      return false;
+    }
+
+    // Les admins voient tout
+    if (user.role === 'admin') return true;
+
+    const required = item.requiredPermissions ?? [];
+    if (required.length === 0) return true;
+
+    // Au moins une permission requise doit être présente
+    return required.some((permission) => hasPermission(permission));
+  }, [user, permissionsLoading, hasPermission]);
+
+  // Construire le menu à partir de tous les items disponibles, puis filtrer par permissions
+  // pour que toute personne ayant la permission d'un module voie son lien, quel que soit son rôle.
+  const registryItems = useMemo(
+    () => navigationRegistry.flatMap((group) => group.items),
+    []
+  );
+
+  // Filtrer selon permissions/roles puis dédupliquer par chemin
+  const currentMenu = useMemo(() => {
+    const filtered = registryItems.filter((item) => shouldShowMenuItem(item));
+    const uniqueMap = new Map<string, NavigationItem>();
+    for (const item of filtered) {
+      if (!uniqueMap.has(item.to)) {
+        uniqueMap.set(item.to, item);
+      }
+    }
+    return Array.from(uniqueMap.values());
+  }, [registryItems, shouldShowMenuItem]);
+
   const homePath = user ? '/dashboard' : ''
 
-  let activePath = ''
-  for (const item of currentMenu) {
-    const matches =
-      pathname === item.to || pathname.startsWith(item.to + '/');
-    if (!matches) continue;
-    if (!activePath || item.to.length > activePath.length) {
-      activePath = item.to;
+  const activePath = useMemo(() => {
+    let active = '';
+    for (const item of currentMenu) {
+      const matches =
+        pathname === item.to || pathname.startsWith(item.to + '/');
+      if (!matches) continue;
+      if (!active || item.to.length > active.length) {
+        active = item.to;
+      }
     }
-  }
+    return active;
+  }, [currentMenu, pathname]);
 
   // État de chargement pour éviter le clignotement
   const [isLoading, setIsLoading] = useState(true);
@@ -110,7 +102,15 @@ export const AdminSidebar = memo(() => {
     return () => clearTimeout(timer);
   }, []);
 
-  if (isLoading) {
+  // Exposer une fonction globale pour recharger les permissions (utilisé par les composants admin)
+  useEffect(() => {
+    (window as unknown as { refetchPermissions?: () => void | Promise<void> }).refetchPermissions = refetchPermissions;
+    return () => {
+      delete (window as unknown as { refetchPermissions?: () => void | Promise<void> }).refetchPermissions;
+    };
+  }, [refetchPermissions]);
+
+  if (isLoading || permissionsLoading) {
     return (
       <Sidebar collapsible="icon" className="bg-cyan-600 border-cyan-600">
         <SidebarHeader>

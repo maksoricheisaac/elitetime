@@ -131,6 +131,7 @@ export function canAccessUserData(requesterRole: UserRole, targetUserId: string,
   // Un manager peut voir les données de son équipe (implémentation future)
   if (requesterRole === "manager") {
     // TODO: Implémenter la logique de hiérarchie équipe
+    // Par défaut, un manager ne voit que ses propres données tant que la hiérarchie détaillée n'est pas utilisée.
     return targetUserId === requesterId;
   }
   
@@ -138,15 +139,52 @@ export function canAccessUserData(requesterRole: UserRole, targetUserId: string,
   return targetUserId === requesterId;
 }
 
-// Valider un ID utilisateur et vérifier les permissions
+// Valider un ID utilisateur et vérifier les permissions en appliquant la hiérarchie
 export async function validateUserAccess(userId: string, requester: AuthContext): Promise<string> {
   const sanitizedUserId = validateAndSanitize(UserIdSchema, userId);
-  
-  if (!canAccessUserData(requester.user.role, sanitizedUserId, requester.user.id)) {
+
+  // Raccourci : l'admin peut accéder à tout
+  if (requester.user.role === "admin") {
+    return sanitizedUserId;
+  }
+
+  // Récupérer l'utilisateur cible pour vérifier la hiérarchie (chef d'équipe, membres, etc.)
+  const targetUser = await prisma.user.findUnique({
+    where: { id: sanitizedUserId },
+    select: {
+      id: true,
+      teamLeadId: true,
+    },
+  });
+
+  if (!targetUser) {
+    throw new AuthorizationError("Utilisateur cible introuvable");
+  }
+
+  const requesterId = requester.user.id;
+  const role = requester.user.role;
+
+  // L'utilisateur peut toujours accéder à ses propres données
+  if (sanitizedUserId === requesterId) {
+    return sanitizedUserId;
+  }
+
+  // Chef d'équipe : peut accéder aux données des membres de son équipe directe
+  if (role === "team_lead") {
+    if (targetUser.teamLeadId === requesterId) {
+      return sanitizedUserId;
+    }
     throw new AuthorizationError("Accès non autorisé aux données de cet utilisateur");
   }
-  
-  return sanitizedUserId;
+
+  // Manager : par défaut, accès limité à lui-même ;
+  // l'extension de son périmètre se fait via les permissions sur les routes concernées.
+  if (role === "manager") {
+    throw new AuthorizationError("Accès non autorisé aux données de cet utilisateur");
+  }
+
+  // Employé simple : uniquement ses propres données (déjà géré plus haut)
+  throw new AuthorizationError("Accès non autorisé aux données de cet utilisateur");
 }
 
 // Logger de sécurité pour les actions sensibles
@@ -290,12 +328,18 @@ export async function getUserPermissions(userId: string): Promise<Permission[]> 
     include: {
       permission: true,
     },
-    orderBy: {
-      permission: {
-        category: 'asc',
-        name: 'asc',
+    orderBy: [
+      {
+        permission: {
+          category: 'asc',
+        },
       },
-    },
+      {
+        permission: {
+          name: 'asc',
+        },
+      },
+    ],
   });
 
   return userPermissions.map(up => up.permission);

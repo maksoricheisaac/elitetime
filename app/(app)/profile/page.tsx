@@ -7,11 +7,18 @@ import { User, Mail, Briefcase, Building } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from '@/lib/session';
+import { SESSION_COOKIE_NAME, sanitizeUser } from '@/lib/session';
 import { updateEmployeeProfileAction } from '@/actions/employee/profile';
 import ProfileUpdateNotifier from '@/features/employee/profile-update-notifier';
+import { requireNavigationAccessByPath } from '@/lib/navigation-guard';
 
 export default async function AppEmployeeProfile() {
+  try {
+    await requireNavigationAccessByPath('/profile');
+  } catch {
+    redirect('/dashboard');
+  }
+
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
@@ -29,10 +36,6 @@ export default async function AppEmployeeProfile() {
   }
 
   const user = sanitizeUser(session.user);
-
-  if (user.role !== 'employee') {
-    redirect(getDashboardPath(user.role));
-  }
 
   return (
     <div className="space-y-6">

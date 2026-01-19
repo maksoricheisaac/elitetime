@@ -10,13 +10,17 @@ interface ManagerTeamData {
 export async function managerGetTeamData(managerId: string): Promise<ManagerTeamData> {
   const manager = await prisma.user.findUnique({ where: { id: managerId } });
 
-  if (!manager || !manager.department) {
+  if (!manager) {
     return { team: [] };
   }
 
+  const teamScope = manager.department
+    ? [{ department: manager.department }, { teamLeadId: managerId }]
+    : [{ teamLeadId: managerId }];
+
   const team = await prisma.user.findMany({
     where: {
-      department: manager.department,
+      OR: teamScope,
       role: "employee",
       status: "active",
     },

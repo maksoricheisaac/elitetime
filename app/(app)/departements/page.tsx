@@ -1,9 +1,8 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import type { Department } from '@/generated/prisma/client';
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from '@/lib/session';
+import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
@@ -116,26 +115,10 @@ export default async function AppDepartmentsPage({
 }: {
   searchParams?: Promise<{ q?: string }>;
 }) {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!sessionToken) {
-    redirect('/login');
-  }
-
-  const session = await prisma.session.findUnique({
-    where: { sessionToken },
-    include: { user: true },
-  });
-
-  if (!session || session.expiresAt < new Date() || !session.user) {
-    redirect('/login');
-  }
-
-  const user = sanitizeUser(session.user);
-
-  if (!['manager', 'admin'].includes(user.role)) {
-    redirect(getDashboardPath(user.role));
+  try {
+    await requireNavigationAccessById('departements');
+  } catch {
+    redirect('/dashboard');
   }
 
   const search = ((await searchParams)?.q || '').trim().toLowerCase();

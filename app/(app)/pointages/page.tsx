@@ -1,105 +1,61 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from "@/lib/session";
-import { requirePermission, hasUserPermission } from "@/lib/security/rbac";
-import { managerGetPointagesData } from "@/actions/manager/pointages";
 import { getEmployeeRecentPointages } from "@/actions/employee/pointages";
 import EmployeePointagesClient from "@/features/employee/pointages";
 import ManagerPointagesClient from "@/features/manager/pointages";
+import { requireNavigationAccessById } from "@/lib/navigation-guard";
 
 export default async function AppPointagesPage() {
-  try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const auth = await requireNavigationAccessById("pointages");
+  const user = auth.user;
 
-    if (!sessionToken) {
-      redirect("/login");
-    }
-
-    const session = await prisma.session.findUnique({
-      where: { sessionToken },
-      include: { user: true },
-    });
-
-    if (!session || session.expiresAt < new Date() || !session.user) {
-      redirect("/login");
-    }
-
-    const user = sanitizeUser(session.user);
-
-    // Vérifier les permissions spécifiques pour les pointages
-    let canViewAllPointages = false;
-    let canViewTeamPointages = false;
-    let canEditPointages = false;
-
-    if (user.role !== 'admin') {
-      canViewAllPointages = await hasUserPermission(user.id, 'view_all_pointages');
-      canViewTeamPointages = await hasUserPermission(user.id, 'view_team_pointages');
-      canEditPointages = await hasUserPermission(user.id, 'edit_pointages');
-    } else {
-      // Les admins ont toutes les permissions
-      canViewAllPointages = true;
-      canViewTeamPointages = true;
-      canEditPointages = true;
-    }
-
-  // Les employés peuvent voir leurs propres pointages sans permissions supplémentaires
+  // Employé : ne voit que ses propres pointages
   if (user.role === "employee") {
     const pointages = await getEmployeeRecentPointages(user.id, 30);
-    return <EmployeePointagesClient pointages={pointages} canEdit={canEditPointages} />;
+    return <EmployeePointagesClient pointages={pointages} canEdit={false} />;
   }
 
-  // Pour les managers et admins, vérifier les permissions
-  if (!["manager", "admin"].includes(user.role) && !canViewAllPointages && !canViewTeamPointages) {
-    redirect(getDashboardPath(user.role));
+  // Managers & admins : même périmètre (tous les employés actifs)
+  if (!["manager", "admin"].includes(user.role)) {
+    redirect("/dashboard");
   }
 
-  let data: Awaited<ReturnType<typeof managerGetPointagesData>>;
+  const employees = await prisma.user.findMany({
+    where: {
+      role: "employee",
+      status: "active",
+    },
+    orderBy: { firstname: "asc" },
+  });
 
-  if (user.role === "manager") {
-    // Un manager peut voir les pointages s'il a la permission ou par défaut
-    if (!canViewTeamPointages && !canViewAllPointages) {
-      redirect(getDashboardPath(user.role));
-    }
-    data = await managerGetPointagesData(user.id);
+  let data;
+
+  if (employees.length === 0) {
+    data = { team: [], pointages: [], absences: [] };
   } else {
-    // Admin : voir tous les pointages
-    const employees = await prisma.user.findMany({
+    const teamIds = employees.map((u) => u.id);
+
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+
+    const pointages = await prisma.pointage.findMany({
       where: {
-        role: "employee",
-        status: "active",
+        userId: { in: teamIds },
+        date: {
+          gte: since,
+        },
       },
-      orderBy: { firstname: "asc" },
+      orderBy: { date: "desc" },
     });
 
-    if (employees.length === 0) {
-      data = { team: [], pointages: [], absences: [] };
-    } else {
-      const teamIds = employees.map((u) => u.id);
+    const absences = await prisma.absence.findMany({
+      where: {
+        userId: { in: teamIds },
+      },
+      orderBy: { startDate: "desc" },
+    });
 
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
-
-      const pointages = await prisma.pointage.findMany({
-        where: {
-          userId: { in: teamIds },
-          date: {
-            gte: since,
-          },
-        },
-        orderBy: { date: "desc" },
-      });
-
-      const absences = await prisma.absence.findMany({
-        where: {
-          userId: { in: teamIds },
-        },
-        orderBy: { startDate: "desc" },
-      });
-
-      data = { team: employees, pointages, absences };
-    }
+    data = { team: employees, pointages, absences };
   }
 
   return (
@@ -109,8 +65,4 @@ export default async function AppPointagesPage() {
       absences={data.absences}
     />
   );
-  } catch (error) {
-    console.error('Error in pointages page:', error);
-    redirect('/login');
-  }
 }

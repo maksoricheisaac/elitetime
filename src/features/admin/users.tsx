@@ -159,6 +159,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
       admin: "destructive",
       manager: "default",
       employee: "secondary",
+      team_lead: "outline",
     } as const;
     return (
       <Badge variant={variants[role]} className="capitalize">
@@ -226,6 +227,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="employee">Employé</SelectItem>
+                      <SelectItem value="team_lead">Chef d&apos;équipe</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
@@ -312,6 +314,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="employee">Employé</SelectItem>
+                      <SelectItem value="team_lead">Chef d&apos;équipe</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>

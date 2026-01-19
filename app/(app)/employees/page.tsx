@@ -1,10 +1,8 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import type { User } from '@/generated/prisma/client';
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from '@/lib/session';
-import { managerGetTeamData } from '@/actions/manager/team';
+import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -71,38 +69,20 @@ export default async function AppEmployeesPage({
 }: {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!sessionToken) {
-    redirect('/login');
-  }
-
-  const session = await prisma.session.findUnique({
-    where: { sessionToken },
-    include: { user: true },
-  });
-
-  if (!session || session.expiresAt < new Date() || !session.user) {
-    redirect('/login');
-  }
-
-  const user = sanitizeUser(session.user);
-
-  if (!['manager', 'admin'].includes(user.role)) {
-    redirect(getDashboardPath(user.role));
+  let user: User;
+  try {
+    const auth = await requireNavigationAccessById('employees');
+    user = auth.user as User;
+  } catch {
+    redirect('/dashboard');
   }
 
   let employees: User[] = [];
 
-  if (user.role === 'manager') {
-    const data = await managerGetTeamData(user.id);
-    employees = data.team;
-  } else {
-    employees = await prisma.user.findMany({
-      orderBy: { firstname: 'asc' },
-    });
-  }
+  // Pour l'instant : managers et admins voient tous les employés
+  employees = await prisma.user.findMany({
+    orderBy: { firstname: 'asc' },
+  });
 
   const departments = await prisma.department.findMany({
     orderBy: { name: 'asc' },

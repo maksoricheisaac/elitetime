@@ -1,7 +1,5 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { SESSION_COOKIE_NAME, sanitizeUser, getDashboardPath } from "@/lib/session";
 import { managerGetDashboardStats } from "@/actions/manager/dashboard";
 import { getAdminDashboardStats } from "@/actions/admin/dashboard";
 import { getSystemSettings } from "@/actions/admin/settings";
@@ -14,25 +12,17 @@ import { Users, UserCheck, Shield, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PresenceChart } from "@/components/charts/presence-chart";
 import { RetardChart } from "@/components/charts/retard-chart";
+import { requireNavigationAccessById } from "@/lib/navigation-guard";
 
 export default async function AppDashboardPage() {
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
-
-  if (!sessionToken) {
-    redirect("/login");
-  }
-
-  const session = await prisma.session.findUnique({
-    where: { sessionToken },
-    include: { user: true },
+  const auth = await requireNavigationAccessById('dashboard');
+  const user = await prisma.user.findUnique({
+    where: { id: auth.user.id },
   });
 
-  if (!session || session.expiresAt < new Date() || !session.user) {
-    redirect("/login");
+  if (!user) {
+    redirect('/login');
   }
-
-  const user = sanitizeUser(session.user);
 
   if (user.role === "employee") {
     const [todayPointage, weekStats, systemSettings, todayBreaks] = await Promise.all([
@@ -86,8 +76,8 @@ export default async function AppDashboardPage() {
       const date = new Date();
       date.setDate(date.getDate() - (29 - i));
       
-      const retards = Math.max(0, Math.floor(Math.random() * 8));
-      const moyenneRetard = 5 + Math.floor(Math.random() * 15);
+      const retards = (i * 3) % 8;
+      const moyenneRetard = 5 + ((i * 7) % 15);
 
       return {
         date: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),
@@ -95,8 +85,6 @@ export default async function AppDashboardPage() {
         moyenneRetard,
       };
     });
-
-    const recentLogs = stats.recentActivity;
 
     return (
       <div className="space-y-6">
@@ -200,5 +188,5 @@ export default async function AppDashboardPage() {
     );
   }
 
-  redirect(getDashboardPath(user.role));
+  redirect('/dashboard');
 }
