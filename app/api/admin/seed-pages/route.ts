@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { SESSION_COOKIE_NAME, sanitizeUser } from "@/lib/session";
 import { seedPages } from "@/lib/seed-pages";
 
-export async function POST() {
+export async function GET() {
   try {
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;

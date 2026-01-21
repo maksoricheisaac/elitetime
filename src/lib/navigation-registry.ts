@@ -78,6 +78,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: Users,
         label: 'Employés',
         allowedRoles: ['admin', 'manager'],
+        requiredPermissions: ['view_employees'],
       },
       {
         id: 'departements',
@@ -85,6 +86,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: Settings,
         label: 'Départements',
         allowedRoles: ['admin', 'manager'],
+        requiredPermissions: ['view_departments'],
       },
       {
         id: 'postes',
@@ -92,6 +94,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: Settings,
         label: 'Postes',
         allowedRoles: ['admin', 'manager'],
+        requiredPermissions: ['view_positions'],
       },
       {
         id: 'reports',
@@ -99,6 +102,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: FileText,
         label: 'Rapports',
         allowedRoles: ['admin', 'manager'],
+        requiredPermissions: ['view_reports'],
       },
       {
         id: 'validations',
@@ -106,6 +110,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: CheckCircle,
         label: 'Validations',
         allowedRoles: ['admin', 'manager'],
+        requiredPermissions: ['validate_absences'],
       },
       {
         id: 'absences',
@@ -113,6 +118,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: Activity,
         label: 'Absences',
         allowedRoles: ['admin', 'manager'],
+        requiredPermissions: ['view_team_absences', 'view_all_absences'],
       },
     ],
   },
@@ -133,6 +139,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: Settings,
         label: 'Paramètres',
         allowedRoles: ['admin'],
+        requiredPermissions: ['view_settings'],
       },
       {
         id: 'logs',
@@ -140,6 +147,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: Activity,
         label: 'Logs',
         allowedRoles: ['admin'],
+        requiredPermissions: ['view_all_absences'],
       },
     ],
   },

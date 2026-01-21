@@ -6,10 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Activity, Search, Filter } from "lucide-react";
 import type { ActivityLog, User } from "@/generated/prisma/client";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 
 interface ActivityLogWithUser extends ActivityLog {
   user: User | null;
@@ -18,6 +19,56 @@ interface ActivityLogWithUser extends ActivityLog {
 interface LogsClientProps {
   logs: ActivityLogWithUser[];
 }
+
+const logColumns: ColumnDef<ActivityLogWithUser>[] = [
+  {
+    accessorKey: "user",
+    header: () => <span>Utilisateur</span>,
+    cell: ({ row }) => {
+      const user = row.original.user;
+      if (!user) {
+        return <span>Utilisateur supprimé</span>;
+      }
+      const label = `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.email;
+      return <span>{label}</span>;
+    },
+  },
+  {
+    accessorKey: "type",
+    header: () => <span>Type</span>,
+    cell: ({ row }) => <span>{row.original.type}</span>,
+  },
+  {
+    accessorKey: "action",
+    header: () => <span>Action</span>,
+    cell: ({ row }) => <span className="font-medium">{row.original.action}</span>,
+  },
+  {
+    accessorKey: "details",
+    header: () => <span>Détails</span>,
+    cell: ({ row }) => (
+      <span className="max-w-[360px] truncate" title={row.original.details}>
+        {row.original.details}
+      </span>
+    ),
+  },
+  {
+    accessorKey: "timestamp",
+    header: () => <span>Date &amp; heure</span>,
+    cell: ({ row }) => (
+      <span className="whitespace-nowrap text-xs text-muted-foreground">
+        {new Date(row.original.timestamp).toLocaleString("fr-FR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+        })}
+      </span>
+    ),
+  },
+];
 
 export default function LogsClient({ logs }: LogsClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -213,50 +264,7 @@ export default function LogsClient({ logs }: LogsClientProps) {
             <p className="py-8 text-center text-muted-foreground">Aucun log trouvé</p>
           ) : (
             <>
-              <div className="w-full overflow-x-auto">
-                <Table className="min-w-[900px] text-sm">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Utilisateur</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Action</TableHead>
-                      <TableHead>Détails</TableHead>
-                      <TableHead>Date & heure</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedLogs.map((log) => {
-                      const user = log.user;
-                      return (
-                        <TableRow key={log.id} className="hover:bg-muted/50">
-                          <TableCell className="whitespace-nowrap">
-                            {user
-                              ? `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.email
-                              : "Utilisateur supprimé"}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
-                            {getTypeBadge(log.type)}
-                          </TableCell>
-                          <TableCell className="font-medium">{log.action}</TableCell>
-                          <TableCell className="max-w-[360px] truncate" title={log.details}>
-                            {log.details}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                            {new Date(log.timestamp).toLocaleString("fr-FR", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                            })}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+              <DataTable columns={logColumns} data={paginatedLogs} />
               <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
                 <span>
                   Page {currentPage} sur {totalPages} — {filteredLogs.length} log(s)

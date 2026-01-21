@@ -43,7 +43,9 @@ export default function EmployeeDashboardClient({
 	const [isPending, startTransition] = useTransition();
 	const [currentTime, setCurrentTime] = useState(new Date());
 	const [breaks, setBreaks] = useState<Break[]>(initialBreaks ?? []);
-	const [isOnBreak, setIsOnBreak] = useState(false);
+	const [isOnBreak, setIsOnBreak] = useState(
+		() => (initialBreaks ?? []).some((b) => !b.endTime),
+	);
 	const { emitLateAlert } = useRealtime();
 
 	const currentHour = currentTime.getHours();
@@ -113,8 +115,8 @@ export default function EmployeeDashboardClient({
 				...prev,
 				{
 					startTime: created.startTime,
-					endTime: created.endTime ?? undefined,
-					duration: created.duration ?? undefined,
+					endTime: created.endTime ?? null,
+					duration: created.duration ?? null,
 				},
 			]);
 			setIsOnBreak(true);
@@ -141,8 +143,8 @@ export default function EmployeeDashboardClient({
 				const last = cloned[cloned.length - 1];
 				cloned[cloned.length - 1] = {
 					...last,
-					endTime: updated.endTime ?? undefined,
-					duration: updated.duration ?? undefined,
+					endTime: updated.endTime,
+					duration: updated.duration,
 				};
 				return cloned;
 			});
@@ -303,7 +305,7 @@ export default function EmployeeDashboardClient({
 		(todayPointage?.status === "late" || weekLates > 0 || weekOvertime > 0) && (
 			<Card className="border border-amber-200 bg-card text-amber-900 dark:border-amber-900/40">
 			<CardContent className="flex items-start gap-3 py-3">
-				<AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-500" />
+				<AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
 				<div className="space-y-1 text-sm">
 				{todayPointage?.status === "late" && (
 					<p>Vous avez pointé en retard aujourd&apos;hui.</p>

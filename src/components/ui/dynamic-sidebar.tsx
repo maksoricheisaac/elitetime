@@ -8,88 +8,72 @@ import {
   SidebarContent,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from '@/components/ui/sidebar';
-import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Activity,
-  Settings,
-  Clock,
-  UserIcon,
-  CheckCircle,
-  Shield,
-  Calendar,
-  BarChart3,
-  Database,
-  Bell,
-  Zap,
-} from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useUserPermissions } from '@/hooks/use-user-permissions';
-import logo from '@/public/logo/logo.png'
+import logo from '@public/logo/logo.png'
 import Image from 'next/image';
+import { navigationRegistry, type NavigationItem } from '@/lib/navigation-registry';
 
-// Menu de base pour les employés
-const baseEmployeeMenu = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', requiredPermissions: [] },
-  { to: '/pointages', icon: Clock, label: 'Mes pointages', requiredPermissions: [] },
-  { to: '/profile', icon: UserIcon, label: 'Profil', requiredPermissions: [] },
-];
-
-// Menu étendu basé sur les permissions
-const permissionBasedMenu = [
-  { to: '/employees', icon: Users, label: 'Employés', requiredPermissions: ['view_employees'] },
-  { to: '/reports', icon: FileText, label: 'Rapports', requiredPermissions: ['view_reports'] },
-  { to: '/departements', icon: Settings, label: 'Départements', requiredPermissions: ['view_departments'] },
-  { to: '/postes', icon: Settings, label: 'Postes', requiredPermissions: ['view_positions'] },
-  { to: '/validations', icon: CheckCircle, label: 'Validations', requiredPermissions: ['validate_absences'] },
-  { to: '/absences', icon: Calendar, label: 'Absences', requiredPermissions: ['view_team_absences', 'view_all_absences'] },
-  { to: '/settings', icon: Settings, label: 'Paramètres', requiredPermissions: ['view_settings'] },
-  { to: '/logs', icon: Activity, label: 'Logs', requiredPermissions: ['view_all_absences'] }, // Réutilise la même permission
-];
+type SidebarItem = {
+  to: NavigationItem['to'];
+  icon: NavigationItem['icon'];
+  label: NavigationItem['label'];
+};
 
 export const DynamicSidebar = memo(() => {
   const { user } = useAuth();
   const { hasPermission, loading } = useUserPermissions();
   const pathname = usePathname();
 
-  // Fonction pour vérifier si un élément de menu doit être affiché
-  const shouldShowMenuItem = (requiredPermissions: string[]) => {
+  const registryItems: NavigationItem[] = navigationRegistry.flatMap((group) => group.items);
+
+  // Fonction pour vérifier si un élément de menu doit être affiché pour l'utilisateur courant
+  const shouldShowNavigationItem = (item: NavigationItem): boolean => {
     if (!user || loading) return false;
-    
-    // Les admins voient tout
-    if (user.role === 'admin') return true;
-    
-    // Si aucune permission n'est requise, afficher
-    if (requiredPermissions.length === 0) return true;
-    
+
+    const { allowedRoles, requiredPermissions } = item;
+
+    // Filtrage par rôle si défini
+    if (allowedRoles && !allowedRoles.includes(user.role)) {
+      return false;
+    }
+
+    // Les admins voient tout ce qui leur est autorisé par rôle
+    if (user.role === 'admin') {
+      return true;
+    }
+
+    const required = requiredPermissions ?? [];
+
+    // Si aucune permission spécifique n'est requise, afficher
+    if (required.length === 0) {
+      return true;
+    }
+
     // Vérifier si l'utilisateur a au moins une des permissions requises
-    return requiredPermissions.some(permission => hasPermission(permission));
+    return required.some((permission) => hasPermission(permission));
   };
 
-  // Construire le menu dynamiquement
-  const buildMenu = () => {
+  // Construire le menu dynamiquement à partir du registre de navigation
+  const buildMenuFromRegistry = (): SidebarItem[] => {
     if (!user) return [];
-    
-    // Menu de base pour tous les employés
-    let menu = [...baseEmployeeMenu];
-    
-    // Ajouter les éléments basés sur les permissions
-    const additionalItems = permissionBasedMenu.filter(item => 
-      shouldShowMenuItem(item.requiredPermissions)
-    );
-    
-    return [...menu, ...additionalItems];
+
+    const visibleItems = registryItems.filter(shouldShowNavigationItem);
+
+    return visibleItems.map((item) => ({
+      to: item.to,
+      icon: item.icon,
+      label: item.label,
+    }));
   };
 
-  const currentMenu = buildMenu();
+  const currentMenu = buildMenuFromRegistry();
   const homePath = user ? '/dashboard' : '';
 
   let activePath = '';

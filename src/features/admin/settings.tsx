@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
+import { z } from "zod";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useNotification } from "@/contexts/notification-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Clock, Calendar, Bell, TrendingUp, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,65 +27,156 @@ import {
 import type { SystemSettings } from "@/generated/prisma/client";
 import { adminUpdateSystemSettings } from "@/actions/admin/settings";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  systemSettingsFormSchema,
+  type SystemSettingsFormInput,
+  type SystemSettingsFormValues,
+} from "@/schemas/admin/forms/settings";
 
 interface AdminSettingsClientProps {
   initialSettings: SystemSettings;
 }
 
 export default function AdminSettingsClient({ initialSettings }: AdminSettingsClientProps) {
-  const { showSuccess } = useNotification();
+  const { showSuccess, showError } = useNotification();
   const [isPending, startTransition] = useTransition();
 
-  const [settings, setSettings] = useState(initialSettings);
-  const [newHoliday, setNewHoliday] = useState("");
-  const [, setNotifications] = useState(initialSettings.notificationsEnabled);
+  const form = useForm<SystemSettingsFormInput, unknown, SystemSettingsFormValues>({
+    resolver: zodResolver(systemSettingsFormSchema),
+    defaultValues: {
+      workStartTime: initialSettings.workStartTime,
+      workEndTime: initialSettings.workEndTime,
+      maxSessionEndTime: initialSettings.maxSessionEndTime ?? "",
+      breakDuration: initialSettings.breakDuration,
+      overtimeThreshold: initialSettings.overtimeThreshold,
+      holidays: (initialSettings.holidays as string[]) ?? [],
+      notificationsEnabled: initialSettings.notificationsEnabled,
+      newHoliday: "",
+    },
+    mode: "onSubmit",
+  });
 
-  const handleSaveGeneral = () => {
-    startTransition(async () => {
-      await adminUpdateSystemSettings({
-        workStartTime: settings.workStartTime,
-        workEndTime: settings.workEndTime,
-        maxSessionEndTime: settings.maxSessionEndTime,
-        breakDuration: settings.breakDuration,
-        overtimeThreshold: settings.overtimeThreshold,
-        holidays: (settings.holidays as string[]) ?? [],
+  const applyZodErrors = (error: z.ZodError<unknown>) => {
+    error.issues.forEach((issue) => {
+      const field = issue.path[0];
+      if (!field || typeof field !== "string") return;
+      form.setError(field as keyof SystemSettingsFormValues, {
+        type: "manual",
+        message: issue.message,
       });
-      showSuccess("✅ Paramètres généraux enregistrés");
     });
   };
 
-  const handleAddHoliday = () => {
-    if (newHoliday) {
-      const updatedHolidays = [...((settings.holidays as string[]) ?? []), newHoliday].sort();
-      setSettings({ ...settings, holidays: updatedHolidays});
-      setNewHoliday("");
+  const handleSaveGeneral = () => {
+    void form.handleSubmit((values) => {
+      const parsed = systemSettingsFormSchema.safeParse(values);
+      if (!parsed.success) {
+        applyZodErrors(parsed.error);
+        showError("Veuillez corriger les champs en erreur.");
+        return;
+      }
       startTransition(async () => {
-        await adminUpdateSystemSettings({ holidays: updatedHolidays });
-        showSuccess("✅ Jour férié ajouté");
+        try {
+          await adminUpdateSystemSettings({
+            workStartTime: parsed.data.workStartTime,
+            workEndTime: parsed.data.workEndTime,
+            maxSessionEndTime: parsed.data.maxSessionEndTime || undefined,
+            breakDuration: parsed.data.breakDuration,
+            overtimeThreshold: parsed.data.overtimeThreshold,
+            holidays: parsed.data.holidays,
+          });
+          showSuccess("Paramètres généraux enregistrés");
+        } catch {
+          showError("Impossible d'enregistrer les paramètres pour le moment.");
+        }
       });
-    }
+    })();
+  };
+
+  const handleAddHoliday = () => {
+    const raw = form.getValues("newHoliday") ?? "";
+    if (!raw) return;
+
+    void form.trigger(["newHoliday", "holidays"]).then((ok) => {
+      if (!ok) return;
+      const current = form.getValues("holidays") ?? [];
+      const updated = [...current, raw].sort();
+      const parsed = systemSettingsFormSchema.pick({ holidays: true }).safeParse({
+        holidays: updated,
+      });
+      if (!parsed.success) {
+        applyZodErrors(parsed.error);
+        showError("La date sélectionnée est invalide.");
+        return;
+      }
+      form.setValue("holidays", updated, { shouldDirty: true });
+      form.setValue("newHoliday", "", { shouldDirty: true });
+
+      startTransition(async () => {
+        try {
+          await adminUpdateSystemSettings({ holidays: updated });
+          showSuccess("Jour férié ajouté");
+        } catch {
+          showError("Impossible d'ajouter ce jour férié.");
+        }
+      });
+    });
   };
 
   const handleRemoveHoliday = (date: string) => {
-    const updatedHolidays = ((settings.holidays as string[]) ?? []).filter((h) => h !== date);
-    setSettings({ ...settings, holidays: updatedHolidays });
-    startTransition(async () => {
-      await adminUpdateSystemSettings({ holidays: updatedHolidays });
-      showSuccess("✅ Jour férié supprimé");
+    const current = form.getValues("holidays") ?? [];
+    const updated = current.filter((h) => h !== date);
+    form.setValue("holidays", updated, { shouldDirty: true });
+
+    void form.trigger("holidays").then((ok) => {
+      if (!ok) return;
+      const parsed = systemSettingsFormSchema.pick({ holidays: true }).safeParse({
+        holidays: updated,
+      });
+      if (!parsed.success) {
+        applyZodErrors(parsed.error);
+        showError("La liste des jours fériés est invalide.");
+        return;
+      }
+      startTransition(async () => {
+        try {
+          await adminUpdateSystemSettings({ holidays: updated });
+          showSuccess("✅ Jour férié supprimé");
+        } catch {
+          showError("Impossible de supprimer ce jour férié.");
+        }
+      });
     });
   };
 
   const handleToggleNotifications = (value: boolean) => {
-    setNotifications(value);
-    setSettings({ ...settings, notificationsEnabled: value });
-    startTransition(async () => {
-      await adminUpdateSystemSettings({ notificationsEnabled: value });
-      showSuccess("✅ Paramètres de notifications mis à jour");
+    form.setValue("notificationsEnabled", value, { shouldDirty: true });
+    void form.trigger("notificationsEnabled").then((ok) => {
+      if (!ok) return;
+      const parsed = systemSettingsFormSchema.pick({ notificationsEnabled: true }).safeParse({
+        notificationsEnabled: value,
+      });
+      if (!parsed.success) {
+        applyZodErrors(parsed.error);
+        showError("La valeur des notifications est invalide.");
+        return;
+      }
+      startTransition(async () => {
+        try {
+          await adminUpdateSystemSettings({ notificationsEnabled: value });
+          showSuccess("Paramètres de notifications mis à jour");
+        } catch {
+          showError("Impossible de mettre à jour les notifications.");
+        }
+      });
     });
   };
 
+  const holidays = form.watch("holidays");
+
   return (
-    <div className="space-y-6">
+    <Form {...form}>
+      <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Paramètres système</h1>
         <p className="text-muted-foreground">Configuration globale de l&apos;application</p>
@@ -117,55 +212,70 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-3">
-                <div>
-                  <Label htmlFor="startTime">Heure de début</Label>
-                  <Input
-                    id="startTime"
-                    type="time"
-                    value={settings.workStartTime}
-                    onChange={(e) =>
-                      setSettings({ ...settings, workStartTime: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxSessionEndTime">Heure limite de pointage</Label>
-                  <Input
-                    id="maxSessionEndTime"
-                    type="time"
-                    value={settings.maxSessionEndTime ?? ""}
-                    onChange={(e) =>
-                      setSettings({ ...settings, maxSessionEndTime: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="endTime">Heure de fin</Label>
-                  <Input
-                    id="endTime"
-                    type="time"
-                    value={settings.workEndTime}
-                    onChange={(e) =>
-                      setSettings({ ...settings, workEndTime: e.target.value })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="breakDuration">Pause (minutes)</Label>
-                  <Input
-                    id="breakDuration"
-                    type="number"
-                    value={settings.breakDuration}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        breakDuration: parseInt(e.target.value || "0", 10),
-                      })
-                    }
-                  />
-                </div>
+                <FormField
+                  control={form.control}
+                  name="workStartTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Heure de début</FormLabel>
+                      <FormControl>
+                        <Input id="startTime" type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="maxSessionEndTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Heure limite de pointage</FormLabel>
+                      <FormControl>
+                        <Input
+                          id="maxSessionEndTime"
+                          type="time"
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="workEndTime"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Heure de fin</FormLabel>
+                      <FormControl>
+                        <Input id="endTime" type="time" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="breakDuration"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pause (minutes)</FormLabel>
+                      <FormControl>
+                        <Input
+                          id="breakDuration"
+                          type="number"
+                          value={field.value == null ? "" : String(field.value)}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <Button onClick={handleSaveGeneral} disabled={isPending}>
+              <Button type="button" onClick={handleSaveGeneral} disabled={isPending}>
                 Enregistrer les modifications
               </Button>
             </CardContent>
@@ -182,25 +292,29 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
               <CardDescription>Configuration du calcul des heures sup</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="overtimeThreshold">Seuil quotidien (heures)</Label>
-                <Input
-                  id="overtimeThreshold"
-                  type="number"
-                  value={settings.overtimeThreshold}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      overtimeThreshold: parseInt(e.target.value || "0", 10),
-                    })
-                  }
-                  className="max-w-xs"
-                />
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Au-delà de ce seuil, les heures sont comptabilisées comme heures supplémentaires
-                </p>
-              </div>
-              <Button onClick={handleSaveGeneral} disabled={isPending}>
+              <FormField
+                control={form.control}
+                name="overtimeThreshold"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Seuil quotidien (heures)</FormLabel>
+                    <FormControl>
+                      <Input
+                        id="overtimeThreshold"
+                        type="number"
+                        className="max-w-xs"
+                        value={field.value == null ? "" : String(field.value)}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Au-delà de ce seuil, les heures sont comptabilisées comme heures supplémentaires
+                    </p>
+                  </FormItem>
+                )}
+              />
+              <Button type="button" onClick={handleSaveGeneral} disabled={isPending}>
                 Enregistrer
               </Button>
             </CardContent>
@@ -218,20 +332,27 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex gap-2">
-                <Input
-                  type="date"
-                  value={newHoliday}
-                  onChange={(e) => setNewHoliday(e.target.value)}
-                  className="max-w-xs"
+                <FormField
+                  control={form.control}
+                  name="newHoliday"
+                  render={({ field }) => (
+                    <FormItem className="max-w-xs">
+                      <FormLabel className="sr-only">Nouveau jour férié</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <Button onClick={handleAddHoliday} disabled={isPending}>
+                <Button type="button" onClick={handleAddHoliday} disabled={isPending}>
                   <Plus className="mr-2 h-4 w-4" />
                   Ajouter
                 </Button>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {(settings.holidays as string[]).map((date) => (
+                {holidays.map((date) => (
                   <Badge
                     key={date}
                     variant="secondary"
@@ -243,6 +364,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                       year: "numeric",
                     })}
                     <button
+                      type="button"
                       onClick={() => handleRemoveHoliday(date)}
                       className="ml-2 hover:text-destructive"
                     >
@@ -274,10 +396,21 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                     Recevoir des notifications pour les événements importants
                   </p>
                 </div>
-                <Switch
-                  id="notifications"
-                  checked={settings.notificationsEnabled}
-                  onCheckedChange={handleToggleNotifications}
+                <FormField
+                  control={form.control}
+                  name="notificationsEnabled"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Switch
+                          id="notifications"
+                          checked={field.value}
+                          onCheckedChange={handleToggleNotifications}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
               </div>
 
@@ -391,5 +524,6 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
         </TabsContent>
       </Tabs>
     </div>
+  </Form>
   );
 }

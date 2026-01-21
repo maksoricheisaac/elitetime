@@ -1,10 +1,13 @@
 "use client"
 import { useState, useTransition } from "react";
+import { useForm, type Path } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useNotification } from "@/contexts/notification-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -15,7 +18,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import {
   Pagination,
@@ -39,54 +41,88 @@ import {
 import type { User } from "@/generated/prisma/client";
 import { adminCreateUser, adminDeleteUser, adminUpdateUser } from "@/actions/admin/users";
 import { useRouter } from "next/navigation";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import {
+  adminCreateUserFormSchema,
+  adminEditUserFormSchema,
+  adminUsersFiltersSchema,
+  type AdminCreateUserFormInput,
+  type AdminCreateUserFormValues,
+  type AdminEditUserFormInput,
+  type AdminEditUserFormValues,
+  type AdminUsersFiltersInput,
+  type AdminUsersFiltersValues,
+} from "@/schemas/admin/forms/users";
+
 
 interface AdminUsersClientProps {
   users: User[];
 }
 
 export default function AdminUsersClient({ users }: AdminUsersClientProps) {
-  const { showSuccess } = useNotification();
+  const { showSuccess, showError } = useNotification();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterRole, setFilterRole] = useState<string>("all");
-  const [filterDepartment, setFilterDepartment] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Formulaire pour création
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    role: "employee" as User["role"],
-    department: "",
-    position: "",
+  // Formulaires pour création et édition (react-hook-form + Zod)
+  const createForm = useForm<AdminCreateUserFormInput>({
+    resolver: zodResolver(adminCreateUserFormSchema),
+    defaultValues: {
+      email: "",
+      username: "",
+      firstname: "",
+      lastname: "",
+      role: "employee",
+      department: "",
+      position: "",
+    },
+    mode: "onSubmit",
   });
 
-  // Formulaire pour édition
-  const [editFormData, setEditFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    role: "employee" as User["role"],
-    department: "",
-    position: "",
-    status: "active" as User["status"],
+  const filtersForm = useForm<AdminUsersFiltersInput>({
+    resolver: zodResolver(adminUsersFiltersSchema),
+    defaultValues: {
+      search: "",
+      role: "all",
+      department: "all",
+    },
+    mode: "onChange",
+  });
+
+  const editForm = useForm<AdminEditUserFormInput>({
+    resolver: zodResolver(adminEditUserFormSchema),
+    defaultValues: {
+      firstname: "",
+      lastname: "",
+      email: "",
+      role: "employee",
+      department: "",
+      position: "",
+      status: "active",
+    },
+    mode: "onSubmit",
   });
 
   const departments = ["Développement", "Commercial", "RH", "Comptabilité", "Direction"];
 
+  const { search = "", role, department } = filtersForm.watch();
+  const normalizedSearch = search.toLowerCase();
+  const filterRole = role ?? "all";
+  const filterDepartment = department ?? "all";
+
   const filteredUsers = users.filter((user) => {
     const matchSearch =
-      (user.firstname || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.lastname || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.email || "").toLowerCase().includes(searchTerm.toLowerCase());
+      (user.firstname || "").toLowerCase().includes(normalizedSearch) ||
+      (user.lastname || "").toLowerCase().includes(normalizedSearch) ||
+      (user.email || "").toLowerCase().includes(normalizedSearch);
 
     const matchRole = filterRole === "all" || user.role === filterRole;
     const matchDepartment = filterDepartment === "all" || user.department === filterDepartment;
@@ -100,57 +136,86 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
   const endIndex = startIndex + itemsPerPage;
   const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
 
-  const handleAddUser = () => {
-    startTransition(async () => {
-      await adminCreateUser({
-        email: formData.email,
-        firstname: formData.firstName || undefined,
-        lastname: formData.lastName || undefined,
-        role: formData.role,
-        department: formData.department || undefined,
-        position: formData.position || undefined,
-      });
-      showSuccess("✅ Utilisateur ajouté avec succès");
-      setAddDialogOpen(false);
-      setFormData({
-        firstName: "",
-        lastName: "",
-        email: "",
-        role: "employee" as User["role"],
-        department: "",
-        position: "",
-      });
-      router.refresh();
+  const applyZodErrors = <TValues extends Record<string, unknown>>(
+    error: z.ZodError<TValues>,
+    setError: ReturnType<typeof useForm<TValues>>["setError"],
+  ) => {
+    error.issues.forEach((issue) => {
+      const field = issue.path[0];
+      if (!field || typeof field !== "string") return;
+      setError(field as Path<TValues>, { type: "manual", message: issue.message });
     });
   };
 
-  const handleEditUser = () => {
-    if (!selectedUser) return;
+  const handleAddUser = (values: AdminCreateUserFormInput) => {
+    const parsed = adminCreateUserFormSchema.safeParse(values);
+    if (!parsed.success) {
+      applyZodErrors(parsed.error, createForm.setError);
+      showError("Veuillez corriger les champs en erreur.");
+      return;
+    }
     startTransition(async () => {
-      await adminUpdateUser(selectedUser, {
-        firstname: editFormData.firstName || null,
-        lastname: editFormData.lastName || null,
-        email: editFormData.email || null,
-        role: editFormData.role,
-        department: editFormData.department || null,
-        position: editFormData.position || null,
-        status: editFormData.status,
-      });
-      showSuccess("✅ Utilisateur modifié avec succès");
-      setEditDialogOpen(false);
-      setSelectedUser(null);
-      router.refresh();
+      try {
+        await adminCreateUser({
+          email: parsed.data.email,
+          username: parsed.data.username,
+          firstname: parsed.data.firstname?.trim() || null,
+          lastname: parsed.data.lastname?.trim() || null,
+          role: parsed.data.role,
+          department: parsed.data.department?.trim() || null,
+          position: parsed.data.position?.trim() || null,
+        });
+        showSuccess("✅ Utilisateur ajouté avec succès");
+        setAddDialogOpen(false);
+        createForm.reset();
+        router.refresh();
+      } catch {
+        showError("Impossible d'ajouter l'utilisateur pour le moment.");
+      }
+    });
+  };
+
+  const handleEditUser = (values: AdminEditUserFormInput) => {
+    if (!selectedUser) return;
+    const parsed = adminEditUserFormSchema.safeParse(values);
+    if (!parsed.success) {
+      applyZodErrors(parsed.error, editForm.setError);
+      showError("Veuillez corriger les champs en erreur.");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        await adminUpdateUser(selectedUser, {
+          firstname: parsed.data.firstname?.trim() || null,
+          lastname: parsed.data.lastname?.trim() || null,
+          email: parsed.data.email?.trim() || null,
+          role: parsed.data.role,
+          department: parsed.data.department?.trim() || null,
+          position: parsed.data.position?.trim() || null,
+          status: parsed.data.status,
+        });
+        showSuccess("✅ Utilisateur modifié avec succès");
+        setEditDialogOpen(false);
+        setSelectedUser(null);
+        router.refresh();
+      } catch {
+        showError("Impossible de modifier l'utilisateur pour le moment.");
+      }
     });
   };
 
   const handleDeleteUser = () => {
     if (!selectedUser) return;
     startTransition(async () => {
-      await adminDeleteUser(selectedUser);
-      showSuccess("✅ Utilisateur supprimé");
-      setDeleteDialogOpen(false);
-      setSelectedUser(null);
-      router.refresh();
+      try {
+        await adminDeleteUser(selectedUser);
+        showSuccess("✅ Utilisateur supprimé");
+        setDeleteDialogOpen(false);
+        setSelectedUser(null);
+        router.refresh();
+      } catch {
+        showError("Impossible de supprimer cet utilisateur.");
+      }
     });
   };
 
@@ -167,6 +232,94 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
       </Badge>
     );
   };
+
+  const columns: ColumnDef<User>[] = [
+    {
+      accessorKey: "name",
+      header: () => <span>Nom</span>,
+      cell: ({ row }) => {
+        const user = row.original;
+        return (
+          <div className="flex items-center gap-2 font-medium">
+            <span className="text-xl">{user.avatar}</span>
+            {user.firstname} {user.lastname}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "email",
+      header: () => <span>Email</span>,
+      cell: ({ row }) => <span>{row.original.email}</span>,
+    },
+    {
+      accessorKey: "role",
+      header: () => <span>Rôle</span>,
+      cell: ({ row }) => getRoleBadge(row.original.role),
+    },
+    {
+      accessorKey: "department",
+      header: () => <span>Service</span>,
+      cell: ({ row }) => <span>{row.original.department}</span>,
+    },
+    {
+      accessorKey: "position",
+      header: () => <span>Poste</span>,
+      cell: ({ row }) => <span>{row.original.position}</span>,
+    },
+    {
+      accessorKey: "status",
+      header: () => <span>Statut</span>,
+      cell: ({ row }) => {
+        const user = row.original;
+        return (
+          <Badge variant={user.status === "active" ? "default" : "secondary"}>
+            {user.status === "active" ? "Actif" : "Inactif"}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: () => <span>Actions</span>,
+      cell: ({ row }) => {
+        const user = row.original;
+        return (
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSelectedUser(user.id);
+                editForm.reset({
+                  firstname: user.firstname || "",
+                  lastname: user.lastname || "",
+                  email: user.email || "",
+                  role: user.role,
+                  department: user.department || "",
+                  position: user.position || "",
+                  status: user.status || "active",
+                });
+                setEditDialogOpen(true);
+              }}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setSelectedUser(user.id);
+                setDeleteDialogOpen(true);
+              }}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <>
@@ -188,173 +341,303 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
                 <DialogTitle>Nouvel utilisateur</DialogTitle>
                 <DialogDescription>Ajoutez un nouvel utilisateur au système</DialogDescription>
               </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">Prénom</Label>
-                    <Input
-                      id="firstName"
-                      value={formData.firstName}
-                      onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              <Form {...createForm}>
+                <form onSubmit={createForm.handleSubmit(handleAddUser)} className="space-y-4" noValidate>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={createForm.control}
+                      name="firstname"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Prénom</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={createForm.control}
+                      name="lastname"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nom</FormLabel>
+                          <FormControl>
+                            <Input {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="lastName">Nom</Label>
-                    <Input
-                      id="lastName"
-                      value={formData.lastName}
-                      onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="role">Rôle</Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(v) => setFormData({ ...formData, role: v as User["role"] })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Employé</SelectItem>
-                      <SelectItem value="team_lead">Chef d&apos;équipe</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="department">Service</Label>
-                  <Select
-                    value={formData.department}
-                    onValueChange={(v) => setFormData({ ...formData, department: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez un service" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="position">Poste</Label>
-                  <Input
-                    id="position"
-                    value={formData.position}
-                    onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleAddUser} disabled={isPending}>
-                  Ajouter
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
-          {/* Dialog d'édition */}
-          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Modifier l&apos;utilisateur</DialogTitle>
-                <DialogDescription>Modifiez les informations de l&apos;utilisateur sélectionné</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="editFirstName">Prénom</Label>
-                    <Input
-                      id="editFirstName"
-                      value={editFormData.firstName}
-                      onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="editLastName">Nom</Label>
-                    <Input
-                      id="editLastName"
-                      value={editFormData.lastName}
-                      onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
-                    />
-                  </div>
-                </div>
-                <div>
-                  <Label htmlFor="editEmail">Email</Label>
-                  <Input
-                    id="editEmail"
-                    type="email"
-                    value={editFormData.email}
-                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  <FormField
+                    control={createForm.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl>
+                          <Input type="email" autoComplete="email" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
-                <div>
-                  <Label htmlFor="editRole">Rôle</Label>
-                  <Select
-                    value={editFormData.role}
-                    onValueChange={(v) => setEditFormData({ ...editFormData, role: v as User["role"] })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Employé</SelectItem>
-                      <SelectItem value="team_lead">Chef d&apos;équipe</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="editDepartment">Service</Label>
-                  <Select
-                    value={editFormData.department}
-                    onValueChange={(v) => setEditFormData({ ...editFormData, department: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez un service" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept} value={dept}>
-                          {dept}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="editPosition">Poste</Label>
-                  <Input
-                    id="editPosition"
-                    value={editFormData.position}
-                    onChange={(e) => setEditFormData({ ...editFormData, position: e.target.value })}
+
+                  <FormField
+                    control={createForm.control}
+                    name="username"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Identifiant (username)</FormLabel>
+                        <FormControl>
+                          <Input autoComplete="off" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button onClick={handleEditUser} disabled={isPending}>
-                  Enregistrer
-                </Button>
-              </DialogFooter>
+
+                  <FormField
+                    control={createForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Rôle</FormLabel>
+                        <FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="employee">Employé</SelectItem>
+                            <SelectItem value="team_lead">Chef d&apos;équipe</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="department"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service</FormLabel>
+                        <FormControl>
+                          <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionnez un service" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {departments.map((dept) => (
+                                <SelectItem key={dept} value={dept}>
+                                  {dept}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={createForm.control}
+                    name="position"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Poste</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <DialogFooter>
+                    <Button type="submit" disabled={isPending}>
+                      Ajouter
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </Form>
             </DialogContent>
           </Dialog>
         </div>
+
+        {/* Dialog d'édition */}
+        <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+          <DialogTrigger asChild>
+            <div style={{ display: 'none' }} />
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Modifier l&apos;utilisateur</DialogTitle>
+              <DialogDescription>Modifiez les informations de l&apos;utilisateur sélectionné</DialogDescription>
+            </DialogHeader>
+            <Form {...editForm}>
+              <form onSubmit={editForm.handleSubmit(handleEditUser)} className="space-y-4" noValidate>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={editForm.control}
+                    name="firstname"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Prénom</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={editForm.control}
+                    name="lastname"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Nom</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={editForm.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" autoComplete="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rôle</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="employee">Employé</SelectItem>
+                            <SelectItem value="team_lead">Chef d&apos;équipe</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editForm.control}
+                  name="department"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Sélectionnez un service" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {departments.map((dept) => (
+                              <SelectItem key={dept} value={dept}>
+                                {dept}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editForm.control}
+                  name="position"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Poste</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={editForm.control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Statut</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value}
+                          onValueChange={field.onChange}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="active">Actif</SelectItem>
+                            <SelectItem value="inactive">Inactif</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <DialogFooter>
+                  <Button type="submit" disabled={isPending}>
+                    Enregistrer
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
 
         {/* Filtres */}
         <Card>
@@ -362,66 +645,98 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
             <CardTitle>Filtres</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="flex gap-3">
-              <div>
-                <Label htmlFor="search">Recherche</Label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    id="search"
-                    placeholder="Nom, email..."
-                    value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setCurrentPage(1);
-                    }}
-                    className="pl-9"
-                  />
-                </div>
+            <Form {...filtersForm}>
+              <div className="flex gap-3">
+                <FormField
+                  control={filtersForm.control}
+                  name="search"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Recherche</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            id="search"
+                            placeholder="Nom, email..."
+                            className="pl-9"
+                            value={field.value ?? ""}
+                            onChange={(e) => {
+                              field.onChange(e);
+                              setCurrentPage(1);
+                              void filtersForm.trigger("search");
+                            }}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={filtersForm.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rôle</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value ?? "all"}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            setCurrentPage(1);
+                            void filtersForm.trigger("role");
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tous</SelectItem>
+                            <SelectItem value="employee">Employé</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={filtersForm.control}
+                  name="department"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service</FormLabel>
+                      <FormControl>
+                        <Select
+                          value={field.value ?? "all"}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            setCurrentPage(1);
+                            void filtersForm.trigger("department");
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tous</SelectItem>
+                            {departments.map((dept) => (
+                              <SelectItem key={dept} value={dept}>
+                                {dept}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
-              <div>
-                <Label>Rôle</Label>
-                <Select
-                  value={filterRole}
-                  onValueChange={(value) => {
-                    setFilterRole(value);
-                    setCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous</SelectItem>
-                    <SelectItem value="employee">Employé</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Service</Label>
-                <Select
-                  value={filterDepartment}
-                  onValueChange={(value) => {
-                    setFilterDepartment(value);
-                    setCurrentPage(1);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous</SelectItem>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>
-                        {dept}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            </Form>
           </CardContent>
         </Card>
 
@@ -457,83 +772,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="w-full overflow-x-auto">
-              <Table className="min-w-[900px]">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nom</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Rôle</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead>Poste</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedUsers.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
-                        Aucun utilisateur trouvé avec ces filtres.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    paginatedUsers.map((user) => (
-                      <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
-                        <TableCell className="font-medium">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xl">{user.avatar}</span>
-                            {user.firstname} {user.lastname}
-                          </div>
-                        </TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{getRoleBadge(user.role)}</TableCell>
-                        <TableCell>{user.department}</TableCell>
-                        <TableCell>{user.position}</TableCell>
-                        <TableCell>
-                          <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                            {user.status === "active" ? "Actif" : "Inactif"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setSelectedUser(user.id);
-                                setEditFormData({
-                                  firstName: user.firstname || "",
-                                  lastName: user.lastname || "",
-                                  email: user.email || "",
-                                  role: user.role,
-                                  department: user.department || "",
-                                  position: user.position || "",
-                                  status: user.status || "active",
-                                });
-                                setEditDialogOpen(true);
-                              }}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                setSelectedUser(user.id);
-                                setDeleteDialogOpen(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable columns={columns} data={paginatedUsers} />
             {totalItems > 0 && (
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">

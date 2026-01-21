@@ -7,16 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Eye } from "lucide-react";
 import type { User, Pointage, Absence } from "@/generated/prisma/client";
 import { Label } from "@/components/ui/label";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 
 interface ManagerPointagesClientProps {
   team: User[];
   pointages: Pointage[];
   absences: Absence[];
 }
+
+type TodayRow = {
+  employee: User;
+  pointage: Pointage | null;
+};
 
 export default function ManagerPointagesClient({ team, pointages, absences }: ManagerPointagesClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -131,6 +137,87 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
     return { pointages: employeePointages, absences: employeeAbsences };
   };
 
+  const todayColumns: ColumnDef<TodayRow>[] = [
+    {
+      accessorKey: "employee",
+      header: () => <span>Employé</span>,
+      cell: ({ row }) => {
+        const employee = row.original.employee;
+        return (
+          <span className="font-medium">
+            {employee.firstname} {employee.lastname}
+          </span>
+        );
+      },
+    },
+    {
+      accessorKey: "department",
+      header: () => <span>Département</span>,
+      cell: ({ row }) => <span>{row.original.employee.department}</span>,
+    },
+    {
+      accessorKey: "entryTime",
+      header: () => <span>Entrée</span>,
+      cell: ({ row }) => <span>{row.original.pointage?.entryTime || "-"}</span>,
+    },
+    {
+      accessorKey: "exitTime",
+      header: () => <span>Sortie</span>,
+      cell: ({ row }) => <span>{row.original.pointage?.exitTime || "-"}</span>,
+    },
+    {
+      accessorKey: "duration",
+      header: () => <span>Durée</span>,
+      cell: ({ row }) => {
+        const pointage = row.original.pointage;
+        if (!pointage || !pointage.duration || pointage.duration <= 0) {
+          return <span>-</span>;
+        }
+        const hours = Math.floor(pointage.duration / 60);
+        const minutes = pointage.duration % 60;
+        return (
+          <span>
+            {hours}h {minutes}m
+          </span>
+        );
+      },
+    },
+    {
+      id: "status",
+      header: () => <span>Statut</span>,
+      cell: ({ row }) => {
+        const pointage = row.original.pointage;
+
+        let statusLabel = "Non pointé";
+        let statusVariant: "default" | "secondary" | "outline" | "destructive" = "secondary";
+        let statusClassName = "";
+
+        if (pointage) {
+          if (pointage.isActive) {
+            statusLabel = "En activité";
+            statusVariant = "default";
+            statusClassName = "bg-success text-white";
+          } else if (pointage.status === "late") {
+            statusLabel = "En retard";
+            statusVariant = "destructive";
+          } else if (pointage.status === "incomplete") {
+            statusLabel = "Incomplet";
+            statusVariant = "secondary";
+          } else {
+            statusLabel = "Terminé";
+            statusVariant = "outline";
+          }
+        }
+
+        return (
+          <Badge variant={statusVariant} className={statusClassName}>
+            {statusLabel}
+          </Badge>
+        );
+      },
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="space-y-3">
@@ -144,50 +231,7 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Rechercher un employé</Label>
-          <Input
-            placeholder="Nom, prénom"
-            className="w-full md:w-64"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-sm text-muted-foreground">Rechercher par statut</Label>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Filtrer par statut" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous les statuts</SelectItem>
-            <SelectItem value="present">Présents</SelectItem>
-            <SelectItem value="absent">Absents</SelectItem>
-          </SelectContent>
-        </Select>
-        </div>
-
-        {departments.length > 1 && (
-          <Select
-            value={departmentFilter}
-            onValueChange={setDepartmentFilter}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Filtrer par département" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les départements</SelectItem>
-              {departments.map((dept) => (
-                <SelectItem key={dept} value={dept}>
-                  {dept}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {filteredTeam.map((employee) => {
@@ -264,70 +308,52 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
             Liste des pointages du jour pour tous les employés de l&apos;équipe
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="w-full overflow-x-auto">
-            <Table className="min-w-[720px]">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Employé</TableHead>
-                  <TableHead>Département</TableHead>
-                  <TableHead>Entrée</TableHead>
-                  <TableHead>Sortie</TableHead>
-                  <TableHead>Durée</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {todayRows.map(({ employee, pointage }) => {
-                  let durationLabel = "-";
-                  if (pointage && pointage.duration > 0) {
-                    durationLabel = `${Math.floor(pointage.duration / 60)}h ${
-                      pointage.duration % 60
-                    }m`;
-                  }
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Rechercher un employé</Label>
+              <Input
+                placeholder="Nom, prénom"
+                className="w-full md:w-64"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
-                  let statusLabel = "Non pointé";
-                  let statusVariant: "default" | "secondary" | "outline" | "destructive" =
-                    "secondary";
-                  let statusClassName = "";
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">Rechercher par statut</Label>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filtrer par statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les statuts</SelectItem>
+                <SelectItem value="present">Présents</SelectItem>
+                <SelectItem value="absent">Absents</SelectItem>
+              </SelectContent>
+            </Select>
+            </div>
 
-                  if (pointage) {
-                    if (pointage.isActive) {
-                      statusLabel = "En activité";
-                      statusVariant = "default";
-                      statusClassName = "bg-success text-white";
-                    } else if (pointage.status === "late") {
-                      statusLabel = "En retard";
-                      statusVariant = "destructive";
-                    } else if (pointage.status === "incomplete") {
-                      statusLabel = "Incomplet";
-                      statusVariant = "secondary";
-                    } else {
-                      statusLabel = "Terminé";
-                      statusVariant = "outline";
-                    }
-                  }
-
-                  return (
-                    <TableRow key={employee.id}>
-                      <TableCell className="font-medium">
-                        {employee.firstname} {employee.lastname}
-                      </TableCell>
-                      <TableCell>{employee.department}</TableCell>
-                      <TableCell>{pointage?.entryTime || "-"}</TableCell>
-                      <TableCell>{pointage?.exitTime || "-"}</TableCell>
-                      <TableCell>{durationLabel}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant} className={statusClassName}>
-                          {statusLabel}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+            {departments.length > 1 && (
+              <Select
+                value={departmentFilter}
+                onValueChange={setDepartmentFilter}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Filtrer par département" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les départements</SelectItem>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
+          <DataTable columns={todayColumns} data={todayRows} />
         </CardContent>
       </Card>
     </div>

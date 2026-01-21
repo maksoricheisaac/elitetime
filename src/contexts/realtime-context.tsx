@@ -69,7 +69,7 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [user]);
+  }, [user, showInfo]);
 
   const clearLateAlerts = () => {
     setLateAlerts([]);

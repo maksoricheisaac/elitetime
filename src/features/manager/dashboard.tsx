@@ -49,7 +49,9 @@ export default function ManagerDashboardClient({ team, todayPointages }: Manager
             const date = new Date();
             date.setDate(date.getDate() - (29 - i));
             
-            const presents = Math.max(0, Math.floor(team.length * 0.85) + Math.floor(Math.random() * 3));
+            const basePresents = Math.floor(team.length * 0.85);
+            const variation = (i % 3) - 1; // -1, 0, +1
+            const presents = Math.max(0, Math.min(team.length, basePresents + variation));
             const absents = team.length - presents;
 
             return {
@@ -67,8 +69,13 @@ export default function ManagerDashboardClient({ team, todayPointages }: Manager
             const date = new Date();
             date.setDate(date.getDate() - (29 - i));
             
-            const retards = Math.max(0, lateToday.length + Math.floor(Math.random() * 3));
-            const moyenneRetard = 8 + Math.floor(Math.random() * 12);
+            const baseRetards = lateToday.length;
+            const retardsVariation = (i % 3) - 1; // -1, 0, +1
+            const retards = Math.max(0, baseRetards + retardsVariation);
+
+            const baseMoyenneRetard = 8;
+            const moyenneVariation = (i % 4) * 2; // 0, 2, 4, 6
+            const moyenneRetard = baseMoyenneRetard + moyenneVariation;
 
             return {
               date: date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }),

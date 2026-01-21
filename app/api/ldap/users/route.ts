@@ -26,9 +26,12 @@ export async function GET() {
     });
 
     // 3️⃣ Filtrer les comptes système connus côté Node.js (optionnel)
-    const users = searchEntries.filter(
-      u => !["krbtgt", "Administrateur", "Invité"].includes(u.sAMAccountName)
-    );
+    const users = searchEntries.filter((entry) => {
+      const accountValue = entry.sAMAccountName;
+      const rawName = Array.isArray(accountValue) ? accountValue[0] : accountValue;
+      const name = typeof rawName === "string" ? rawName : rawName?.toString();
+      return !!name && !["krbtgt", "Administrateur", "Invité"].includes(name);
+    });
 
     return NextResponse.json({
       count: users.length,

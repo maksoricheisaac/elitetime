@@ -15,6 +15,7 @@ export default async function AppReportsPage() {
       <ManagerReportsClient
         team={data.team}
         pointages={data.pointages}
+        breaks={data.breaks}
         overtimeThreshold={data.overtimeThreshold}
       />
     );
@@ -33,7 +34,7 @@ export default async function AppReportsPage() {
     const settings = await prisma.systemSettings.findFirst();
     const overtimeThreshold = settings?.overtimeThreshold ?? 40;
     return (
-      <ManagerReportsClient team={[]} pointages={[]} overtimeThreshold={overtimeThreshold} />
+      <ManagerReportsClient team={[]} pointages={[]} breaks={[]} overtimeThreshold={overtimeThreshold} />
     );
   }
 
@@ -59,6 +60,16 @@ export default async function AppReportsPage() {
     orderBy: { date: 'desc' },
   });
 
+  const breaks = await prisma.break.findMany({
+    where: {
+      userId: { in: teamIds },
+      date: {
+        gte: since,
+      },
+    },
+    orderBy: { date: 'desc' },
+  });
+
   const settings = await prisma.systemSettings.findFirst();
   const overtimeThreshold = settings?.overtimeThreshold ?? 40;
 
@@ -66,6 +77,7 @@ export default async function AppReportsPage() {
     <ManagerReportsClient
       team={employees}
       pointages={pointages}
+      breaks={breaks}
       overtimeThreshold={overtimeThreshold}
     />
   );

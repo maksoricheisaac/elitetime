@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,7 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   Select,
   SelectContent,
@@ -23,67 +21,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { PositionsFilter } from '@/components/customs/positions-filter';
+import { DataTable } from '@/components/ui/data-table';
+import type { ColumnDef } from '@tanstack/react-table';
+import {
+  createPositionFromForm,
+  updatePositionFromForm,
+  deletePositionFromForm,
+} from '@/actions/admin/positions';
 
-async function createPosition(formData: FormData) {
-  'use server';
-
-  const name = (formData.get('name') as string | null)?.trim() ?? '';
-  const description = (formData.get('description') as string | null)?.trim() || null;
-  const departmentId = (formData.get('departmentId') as string | null)?.trim();
-
-  if (!name || !departmentId) {
-    return;
-  }
-
-  await prisma.position.create({
-    data: {
-      name,
-      description,
-      departmentId,
-    },
-  });
-
-  revalidatePath('/postes');
-}
-
-async function updatePosition(formData: FormData) {
-  'use server';
-
-  const id = (formData.get('id') as string | null)?.trim();
-  const name = (formData.get('name') as string | null)?.trim() ?? '';
-  const description = (formData.get('description') as string | null)?.trim() || null;
-  const departmentId = (formData.get('departmentId') as string | null)?.trim();
-
-  if (!id || !name || !departmentId) {
-    return;
-  }
-
-  await prisma.position.update({
-    where: { id },
-    data: {
-      name,
-      description,
-      departmentId,
-    },
-  });
-
-  revalidatePath('/postes');
-}
-
-async function deletePosition(formData: FormData) {
-  'use server';
-
-  const id = (formData.get('id') as string | null)?.trim();
-  if (!id) {
-    return;
-  }
-
-  await prisma.position.delete({
-    where: { id },
-  });
-
-  revalidatePath('/postes');
-}
 
 export default async function AppPositionsPage({
   searchParams,
@@ -105,16 +50,143 @@ export default async function AppPositionsPage({
     orderBy: { name: 'asc' },
   });
 
-  const departmentParam = searchParams?.department;
+  type PositionWithDepartment = {
+    id: string;
+    name: string;
+    description: string | null;
+    departmentId: string;
+    department: { name: string };
+  };
+
+  const departmentParam = (await searchParams)?.department;
   const selectedDepartment =
     typeof departmentParam === 'string' && departmentParam.length > 0
       ? departmentParam
       : 'all';
 
-  const filteredPositions =
+  const filteredPositions: PositionWithDepartment[] =
     selectedDepartment === 'all'
-      ? positions
-      : positions.filter((p: { id: string; name: string; description: string | null; departmentId: string; department: { name: string } }) => p.departmentId === selectedDepartment);
+      ? (positions as PositionWithDepartment[])
+      : (positions as PositionWithDepartment[]).filter((p) => p.departmentId === selectedDepartment);
+
+  const positionColumns: ColumnDef<PositionWithDepartment>[] = [
+    {
+      accessorKey: 'name',
+      header: () => <span>Nom</span>,
+      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+    },
+    {
+      accessorKey: 'department',
+      header: () => <span>Département</span>,
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{row.original.department.name}</span>
+      ),
+    },
+    {
+      accessorKey: 'description',
+      header: () => <span>Description</span>,
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">
+          {row.original.description || '-'}
+        </span>
+      ),
+    },
+    {
+      id: 'actions',
+      header: () => <span className="block text-right">Actions</span>,
+      cell: ({ row }) => {
+        const position = row.original;
+
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  Modifier
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Modifier le poste</DialogTitle>
+                  <DialogDescription>
+                    Mettez à jour les informations du poste.
+                  </DialogDescription>
+                </DialogHeader>
+                <form action={updatePositionFromForm} className="space-y-4">
+                  <input type="hidden" name="id" value={position.id} />
+                  <div className="space-y-2">
+                    <Label htmlFor={`edit-name-${position.id}`}>
+                      Nom du poste
+                    </Label>
+                    <Input
+                      id={`edit-name-${position.id}`}
+                      name="name"
+                      defaultValue={position.name}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`edit-department-${position.id}`}>
+                      Département
+                    </Label>
+                    <Select name="departmentId" defaultValue={position.departmentId} required>
+                      <SelectTrigger id={`edit-department-${position.id}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.id}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`edit-description-${position.id}`}>
+                      Description
+                    </Label>
+                    <Input
+                      id={`edit-description-${position.id}`}
+                      name="description"
+                      defaultValue={position.description ?? ''}
+                      placeholder="Description du poste (optionnel)"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button type="submit">Enregistrer</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  Supprimer
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Supprimer le poste</DialogTitle>
+                  <DialogDescription>
+                    Cette action est irréversible. Êtes-vous sûr de vouloir supprimer ce
+                    poste&nbsp;?
+                  </DialogDescription>
+                </DialogHeader>
+                <form action={deletePositionFromForm} className="flex justify-end gap-2">
+                  <input type="hidden" name="id" value={position.id} />
+                  <Button type="submit" variant="destructive">
+                    Confirmer
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -157,7 +229,7 @@ export default async function AppPositionsPage({
                   Créez un nouveau poste pour un département.
                 </DialogDescription>
               </DialogHeader>
-              <form action={createPosition} className="space-y-4">
+              <form action={createPositionFromForm} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="new-position-name">Nom du poste</Label>
                   <Input
@@ -198,121 +270,7 @@ export default async function AppPositionsPage({
           </Dialog>
         </CardHeader>
         <CardContent>
-          <div className="w-full overflow-x-auto">
-            <Table className="min-w-[640px] text-sm">
-              <TableHeader>
-                <TableRow className="bg-muted/60">
-                  <TableHead className="w-[220px]">Nom</TableHead>
-                  <TableHead>Département</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-[200px] text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredPositions.map((position: { id: string; name: string; description: string | null; departmentId: string; department: { name: string } }) => (
-                  <TableRow
-                    key={position.id}
-                    className="border-b last:border-b-0 transition-colors hover:bg-muted/40"
-                  >
-                    <TableCell className="font-medium">{position.name}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {position.department.name}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {position.description || '-'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button type="button" variant="outline" size="sm">
-                              Modifier
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Modifier le poste</DialogTitle>
-                              <DialogDescription>
-                                Mettez à jour les informations du poste.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <form action={updatePosition} className="space-y-4">
-                              <input type="hidden" name="id" value={position.id} />
-                              <div className="space-y-2">
-                                <Label htmlFor={`edit-name-${position.id}`}>
-                                  Nom du poste
-                                </Label>
-                                <Input
-                                  id={`edit-name-${position.id}`}
-                                  name="name"
-                                  defaultValue={position.name}
-                                  required
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`edit-department-${position.id}`}>
-                                  Département
-                                </Label>
-                                <Select name="departmentId" defaultValue={position.departmentId} required>
-                                  <SelectTrigger id={`edit-department-${position.id}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {departments.map((dept) => (
-                                      <SelectItem key={dept.id} value={dept.id}>
-                                        {dept.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-2">
-                                <Label htmlFor={`edit-description-${position.id}`}>
-                                  Description
-                                </Label>
-                                <Input
-                                  id={`edit-description-${position.id}`}
-                                  name="description"
-                                  defaultValue={position.description ?? ''}
-                                  placeholder="Description du poste (optionnel)"
-                                />
-                              </div>
-                              <div className="flex justify-end gap-2">
-                                <Button type="submit">Enregistrer</Button>
-                              </div>
-                            </form>
-                          </DialogContent>
-                        </Dialog>
-
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button type="button" variant="outline" size="sm">
-                              Supprimer
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent>
-                            <DialogHeader>
-                              <DialogTitle>Supprimer le poste</DialogTitle>
-                              <DialogDescription>
-                                Cette action est irréversible. Êtes-vous sûr de vouloir supprimer ce
-                                poste&nbsp;?
-                              </DialogDescription>
-                            </DialogHeader>
-                            <form action={deletePosition} className="flex justify-end gap-2">
-                              <input type="hidden" name="id" value={position.id} />
-                              <Button type="submit" variant="destructive">
-                                Confirmer
-                              </Button>
-                            </form>
-                          </DialogContent>
-                        </Dialog>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <DataTable columns={positionColumns} data={filteredPositions} />
         </CardContent>
       </Card>
     </div>

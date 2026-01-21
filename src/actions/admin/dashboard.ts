@@ -22,6 +22,7 @@ export async function getAdminDashboardStats() {
   const countByRole: Record<UserRole, number> = {
     admin: 0,
     manager: 0,
+    team_lead: 0,
     employee: 0,
   };
 

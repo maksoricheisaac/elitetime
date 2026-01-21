@@ -142,7 +142,7 @@ export default async function AppManagerProfile() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Vue d'ensemble de l'équipe
+            Vue d&apos;ensemble de l&apos;équipe
           </CardTitle>
           <CardDescription>
             Les {team.length} premiers membres de votre équipe

@@ -1,4 +1,3 @@
-import { PrismaClient } from "../generated/prisma/client";
 import prisma from "./prisma";
 
 
@@ -49,6 +48,8 @@ export async function seedPermissions() {
   }
   
   console.log(`${PERMISSIONS.length} permissions créées avec succès.`);
+
+  return { created: PERMISSIONS.length };
 }
 
 // Fonction pour exécuter le seeding

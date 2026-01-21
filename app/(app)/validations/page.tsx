@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation';
-import prisma from '@/lib/prisma';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 

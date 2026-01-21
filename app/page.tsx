@@ -23,7 +23,7 @@ export default function Home() {
   }, [router]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-primary/10 via-background to-background">
+    <div className="relative min-h-screen overflow-hidden bg-linear-to-br from-primary/10 via-background to-background">
       <div className="pointer-events-none absolute inset-0 opacity-40">
         <div className="absolute -left-32 -top-32 h-72 w-72 rounded-full bg-primary/40 blur-3xl" />
         <div className="absolute bottom-[-120px] right-[-80px] h-80 w-80 rounded-full bg-primary/40 blur-3xl dark:bg-primary/30" />
@@ -45,7 +45,7 @@ export default function Home() {
             </p>
             <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-muted">
               <div
-                className="h-2 rounded-full bg-primary transition-all duration-[3000ms]"
+                className="h-2 rounded-full bg-primary transition-all duration-3000"
                 style={{
                   width: `${progress}%`,
                 }}

@@ -2,7 +2,7 @@
 
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Clock, TrendingUp } from 'lucide-react';
+import { Clock } from 'lucide-react';
 
 interface RetardData {
   date: string;

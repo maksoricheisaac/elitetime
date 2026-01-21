@@ -13,7 +13,7 @@ export function EmployeesUpdateNotifier() {
     if (updated) {
       showSuccess("Les informations de l'employé ont été mises à jour avec succès.");
     }
-  }, [updated]);
+  }, [showSuccess, updated]);
 
   return null;
 }

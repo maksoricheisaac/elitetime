@@ -29,6 +29,7 @@ export async function GET() {
             status: true,
             createdAt: true,
             updatedAt: true,
+            teamLeadId: true,
           },
         },
       },

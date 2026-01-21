@@ -1,11 +1,12 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import type { User, Pointage } from "@/generated/prisma/client";
+import type { User, Pointage, Break } from "@/generated/prisma/client";
 
 interface ManagerReportsData {
   team: User[];
   pointages: Pointage[];
+  breaks: Break[];
   overtimeThreshold: number;
 }
 
@@ -15,7 +16,7 @@ export async function managerGetReportsData(managerId: string): Promise<ManagerR
   if (!manager || !manager.department) {
     const settings = await prisma.systemSettings.findFirst();
     const overtimeThreshold = settings?.overtimeThreshold ?? 40;
-    return { team: [], pointages: [], overtimeThreshold };
+    return { team: [], pointages: [], breaks: [], overtimeThreshold };
   }
 
   const team = await prisma.user.findMany({
@@ -30,7 +31,7 @@ export async function managerGetReportsData(managerId: string): Promise<ManagerR
   if (team.length === 0) {
     const settings = await prisma.systemSettings.findFirst();
     const overtimeThreshold = settings?.overtimeThreshold ?? 40;
-    return { team, pointages: [], overtimeThreshold };
+    return { team, pointages: [], breaks: [], overtimeThreshold };
   }
 
   const teamIds = team.map((u) => u.id);
@@ -49,8 +50,18 @@ export async function managerGetReportsData(managerId: string): Promise<ManagerR
     orderBy: { date: "desc" },
   });
 
+  const breaks = await prisma.break.findMany({
+    where: {
+      userId: { in: teamIds },
+      date: {
+        gte: since,
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+
   const settings = await prisma.systemSettings.findFirst();
   const overtimeThreshold = settings?.overtimeThreshold ?? 40;
 
-  return { team, pointages, overtimeThreshold };
+  return { team, pointages, breaks, overtimeThreshold };
 }

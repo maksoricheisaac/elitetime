@@ -2,7 +2,7 @@
 
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Calendar } from 'lucide-react';
+import { Users } from 'lucide-react';
 
 interface PresenceData {
   date: string;
@@ -43,7 +43,7 @@ export function PresenceChart({ data, title = "Présences du mois", description 
               axisLine={false}
             />
             <Tooltip
-              content={({ active, payload, label }) => {
+              content={({ active, payload }) => {
                 if (active && payload && payload.length) {
                   const data = payload[0].payload as PresenceData;
                   return (

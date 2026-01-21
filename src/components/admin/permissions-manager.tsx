@@ -13,17 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Search, Plus, X, Shield, User } from 'lucide-react';
-import { toast } from 'sonner';
+import { Search, Shield, User } from 'lucide-react';
 import { useNotification } from '@/contexts/notification-context';
 
 interface Permission {

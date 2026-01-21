@@ -1,7 +1,7 @@
 import { createServer } from "http";
 import { Server } from "socket.io";
 import { authenticateSocket, validateLateAlertPayload, validatePointagePayload, secureCorsOptions, joinRoleRooms, logWebSocketEvent } from "@/lib/security/websocket";
-import type { AuthenticatedSocket, LateAlertPayload, PointagePayload } from "@/lib/security/websocket";
+import type { AuthenticatedSocket } from "@/lib/security/websocket";
 
 const httpServer = createServer();
 

@@ -10,7 +10,7 @@ export default function TestPermissionsPage() {
         <div className="space-y-3">
           <h1 className="text-3xl font-bold tracking-tight">Test des permissions</h1>
           <p className="text-sm text-muted-foreground">
-            Cette page démontre comment la sidebar s'adapte aux permissions de l'utilisateur.
+            Cette page démontre comment la sidebar s&apos;adapte aux permissions de l&apos;utilisateur.
           </p>
         </div>
 
@@ -25,7 +25,7 @@ export default function TestPermissionsPage() {
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
                 <Badge variant="outline">1</Badge>
-                <span>L'utilisateur se connecte</span>
+                <span>L&apos;utilisateur se connecte</span>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">2</Badge>
@@ -33,7 +33,7 @@ export default function TestPermissionsPage() {
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">3</Badge>
-                <span>La sidebar s'adapte automatiquement</span>
+                <span>La sidebar s&apos;adapte automatiquement</span>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">4</Badge>
@@ -60,7 +60,7 @@ export default function TestPermissionsPage() {
               </div>
               
               <div className="p-3 rounded-lg border">
-                <h4 className="font-medium mb-2">Employé avec permission "rapports"</h4>
+                <h4 className="font-medium mb-2">Employé avec permission &quot;rapports&quot;</h4>
                 <ul className="text-sm space-y-1 text-muted-foreground">
                   <li>• Dashboard</li>
                   <li>• Mes pointages</li>
@@ -91,7 +91,7 @@ export default function TestPermissionsPage() {
           <CardContent className="space-y-3">
             <ol className="text-sm space-y-2 list-decimal list-inside">
               <li>
-                Connectez-vous en tant qu'admin
+                Connectez-vous en tant qu&apos;admin
               </li>
               <li>
                 Attribuez des permissions spécifiques à un utilisateur (ex: <code>view_reports</code>)

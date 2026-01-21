@@ -1,4 +1,4 @@
-import { Server, type Socket } from "socket.io";
+import { type Socket } from "socket.io";
 import prisma from "@/lib/prisma";
 
 // Types pour les événements WebSocket

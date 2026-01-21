@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { requireNavigationAccessById } from "@/lib/navigation-guard";
+import { EmployeePointagesDetailTable, type EmployeePointageDetailRow } from "@/features/manager/employee-pointages-detail-table";
 
 interface PointageDetailPageProps {
   params: Promise<{ employeeId: string }>;
@@ -78,6 +77,22 @@ export default async function PointageDetailPage({ params, searchParams }: Point
     breaksByDay.set(key, current + (b.duration ?? 0));
   }
 
+  const rows: EmployeePointageDetailRow[] = pointages.map((p) => {
+    const d = new Date(p.date as unknown as string);
+    const key = d.toISOString().split("T")[0];
+    const pauseMinutes = breaksByDay.get(key) ?? 0;
+
+    return {
+      id: p.id,
+      date: d.toISOString(),
+      entryTime: p.entryTime,
+      exitTime: p.exitTime,
+      duration: p.duration,
+      status: p.status,
+      pauseMinutes,
+    };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -127,70 +142,13 @@ export default async function PointageDetailPage({ params, searchParams }: Point
           </form>
         </CardHeader>
         <CardContent>
-          <div className="w-full overflow-x-auto">
-            <Table className="min-w-[760px] text-sm">
-              <TableHeader>
-                <TableRow className="bg-muted/40">
-                  <TableHead>Date</TableHead>
-                  <TableHead>Entrée</TableHead>
-                  <TableHead>Sortie</TableHead>
-                  <TableHead>Durée</TableHead>
-                  <TableHead>Pauses</TableHead>
-                  <TableHead>Statut</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {pointages.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
-                      Aucun pointage trouvé pour cet employé.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  pointages.map((p) => {
-                    const d = new Date(p.date as unknown as string);
-                    const durationLabel =
-                      p.duration && p.duration > 0
-                        ? `${Math.floor(p.duration / 60)}h ${p.duration % 60}m`
-                        : "-";
-
-                    const key = d.toISOString().split("T")[0];
-                    const pauseMinutes = breaksByDay.get(key) ?? 0;
-                    const pauseLabel =
-                      pauseMinutes > 0
-                        ? `${Math.floor(pauseMinutes / 60)}h ${pauseMinutes % 60}m`
-                        : "-";
-
-                    let statusLabel = "Normal";
-                    let statusVariant: "default" | "secondary" | "outline" | "destructive" = "outline";
-
-                    if (p.status === "late") {
-                      statusLabel = "Retard";
-                      statusVariant = "destructive";
-                    } else if (p.status === "incomplete") {
-                      statusLabel = "Incomplet";
-                      statusVariant = "secondary";
-                    }
-
-                    return (
-                      <TableRow key={p.id}>
-                        <TableCell className="whitespace-nowrap">
-                          {d.toLocaleDateString("fr-FR")}
-                        </TableCell>
-                        <TableCell>{p.entryTime || "-"}</TableCell>
-                        <TableCell>{p.exitTime || "-"}</TableCell>
-                        <TableCell>{durationLabel}</TableCell>
-                        <TableCell>{pauseLabel}</TableCell>
-                        <TableCell>
-                          <Badge variant={statusVariant}>{statusLabel}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          {rows.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">
+              Aucun pointage trouvé pour cet employé.
+            </p>
+          ) : (
+            <EmployeePointagesDetailTable rows={rows} />
+          )}
         </CardContent>
       </Card>
     </div>

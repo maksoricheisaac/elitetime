@@ -1,0 +1,197 @@
+"use client";
+
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
+import type { Department } from "@/generated/prisma/client";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  departmentUpdateFormSchema,
+  type DepartmentUpdateFormValues,
+} from "@/schemas/admin/forms/departments";
+
+export type DepartmentWithEmployeeCount = Department & { employeesCount: number };
+
+interface DepartmentsTableProps {
+  data: DepartmentWithEmployeeCount[];
+  onUpdateDepartment: (formData: FormData) => void;
+  onDeleteDepartment: (formData: FormData) => void;
+}
+
+
+interface DepartmentEditDialogProps {
+  department: DepartmentWithEmployeeCount;
+  onUpdateDepartment: (formData: FormData) => void;
+}
+
+function DepartmentEditDialog({ department, onUpdateDepartment }: DepartmentEditDialogProps) {
+  const form = useForm<DepartmentUpdateFormValues>({
+    resolver: zodResolver(departmentUpdateFormSchema),
+    defaultValues: {
+      id: department.id,
+      name: department.name,
+      description: department.description ?? "",
+    },
+    mode: "onSubmit",
+  });
+
+  const onSubmit = async (values: DepartmentUpdateFormValues) => {
+    const formData = new FormData();
+    formData.append("id", values.id);
+    formData.append("name", values.name);
+    formData.append("description", values.description ?? "");
+
+    await onUpdateDepartment(formData);
+  };
+
+  return (
+    <Form {...form}>
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" noValidate>
+        <input type="hidden" name="id" value={department.id} />
+        <div className="space-y-2">
+          <FormField
+            control={form.control}
+            name="name"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Nom du département</FormLabel>
+                <FormControl>
+                  <Input
+                    id={`edit-name-${department.id}`}
+                    placeholder="Nom du département"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="space-y-2">
+          <FormField
+            control={form.control}
+            name="description"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Description du département</FormLabel>
+                <FormControl>
+                  <Input
+                    id={`edit-description-${department.id}`}
+                    placeholder="Description courte du département (optionnel)"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button type="submit" disabled={form.formState.isSubmitting}>
+            Enregistrer
+          </Button>
+        </div>
+      </form>
+    </Form>
+  );
+}
+
+export function DepartmentsTable({ data, onUpdateDepartment, onDeleteDepartment }: DepartmentsTableProps) {
+  const columns: ColumnDef<DepartmentWithEmployeeCount>[] = [
+    {
+      accessorKey: "name",
+      header: () => <span>Nom</span>,
+      cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
+    },
+    {
+      accessorKey: "description",
+      header: () => <span>Description</span>,
+      cell: ({ row }) => (
+        <span className="text-sm text-muted-foreground">{row.original.description || "-"}</span>
+      ),
+    },
+    {
+      accessorKey: "employeesCount",
+      header: () => <span className="block text-center">Employés</span>,
+      cell: ({ row }) => {
+        const count = row.original.employeesCount;
+        const employeesLabel =
+          count === 0 ? "0 employé" : count === 1 ? "1 employé" : `${count} employés`;
+
+        const employeesClassName =
+          count === 0
+            ? "text-xs text-muted-foreground"
+            : "inline-flex items-center rounded-full bg-primary/5 px-2 py-1 text-xs font-medium text-primary";
+
+        return <span className={employeesClassName}>{employeesLabel}</span>;
+      },
+    },
+    {
+      id: "actions",
+      header: () => <span className="block text-right">Actions</span>,
+      cell: ({ row }) => {
+        const department = row.original;
+        const count = department.employeesCount;
+
+        return (
+          <div className="flex flex-wrap justify-end gap-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button type="button" variant="outline" size="sm">
+                  Modifier
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Modifier le département</DialogTitle>
+                  <DialogDescription>
+                    Renommez le département et mettez à jour les employés associés.
+                  </DialogDescription>
+                </DialogHeader>
+                <DepartmentEditDialog
+                  department={department}
+                  onUpdateDepartment={onUpdateDepartment}
+                />
+              </DialogContent>
+            </Dialog>
+
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={count > 0}
+                >
+                  Supprimer
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Supprimer le département</DialogTitle>
+                  <DialogDescription>
+                    Cette action est irréversible. Êtes-vous sûr de vouloir supprimer ce
+                    département&nbsp;?
+                  </DialogDescription>
+                </DialogHeader>
+                <form action={onDeleteDepartment} className="flex justify-end gap-2">
+                  <input type="hidden" name="id" value={department.id} />
+                  <Button type="submit" variant="destructive">
+                    Confirmer
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return <DataTable columns={columns} data={data} />;
+}

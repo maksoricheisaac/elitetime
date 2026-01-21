@@ -1,13 +1,8 @@
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 import prisma from '@/lib/prisma';
-import type { Department } from '@/generated/prisma/client';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import {
   Dialog,
   DialogContent,
@@ -16,99 +11,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import { DepartmentsTable, type DepartmentWithEmployeeCount } from '@/features/admin/departments-table';
+import { DepartmentsStatsCards } from '@/features/admin/departments-stats-cards';
+import { DepartmentsSearchForm } from '@/features/admin/departments-search-form';
+import { CreateDepartmentForm } from '@/features/admin/create-department-form';
+import {
+  createDepartment,
+  updateDepartment,
+  deleteDepartment,
+} from '@/actions/admin/departments';
 
-async function createDepartment(formData: FormData) {
-  'use server';
-
-  const name = (formData.get('name') as string | null)?.trim() ?? '';
-  const description = (formData.get('description') as string | null)?.trim() || null;
-
-  if (!name) {
-    return;
-  }
-
-  await prisma.department.create({
-    data: {
-      name,
-      description,
-    },
-  });
-  revalidatePath('/departements');
-}
-
-async function updateDepartment(formData: FormData) {
-  'use server';
-
-  const id = (formData.get('id') as string | null)?.trim();
-  const name = (formData.get('name') as string | null)?.trim() ?? '';
-  const description = (formData.get('description') as string | null)?.trim() || null;
-
-  if (!id || !name) {
-    return;
-  }
-
-  const existing = await prisma.department.findUnique({
-    where: { id },
-  });
-
-  if (!existing) {
-    return;
-  }
-
-  await prisma.$transaction([
-    prisma.department.update({
-      where: { id },
-      data: {
-        name,
-        description,
-      },
-    }),
-    prisma.user.updateMany({
-      where: {
-        role: 'employee',
-        department: existing.name,
-      },
-      data: {
-        department: name,
-      },
-    }),
-  ]);
-
-  revalidatePath('/departements');
-}
-
-async function deleteDepartment(formData: FormData) {
-  'use server';
-
-  const id = (formData.get('id') as string | null)?.trim();
-  if (!id) {
-    return;
-  }
-
-  const department = await prisma.department.findUnique({
-    where: { id },
-    select: { name: true },
-  });
-
-  if (!department) {
-    return;
-  }
-
-  const employeesUsingDepartment = await prisma.user.count({
-    where: {
-      role: 'employee',
-      status: 'active',
-      department: department.name,
-    },
-  });
-
-  if (employeesUsingDepartment > 0) {
-    return;
-  }
-
-  await prisma.department.delete({ where: { id } });
-  revalidatePath('/departements');
-}
 
 export default async function AppDepartmentsPage({
   searchParams,
@@ -131,14 +43,20 @@ export default async function AppDepartmentsPage({
     by: ['department'],
     where: {
       role: 'employee',
-      status: 'active',
     },
     _count: {
       _all: true,
     },
   });
 
-  type DepartmentWithEmployeeCount = Department & { employeesCount: number };
+  const allEmployees = await prisma.user.findMany({
+    where: { role: 'employee' },
+    select: { status: true },
+  });
+
+  const totalEmployees = allEmployees.length;
+  const activeEmployees = allEmployees.filter(e => e.status === 'active').length;
+  const inactiveEmployees = allEmployees.filter(e => e.status === 'inactive').length;
 
   const departmentsWithCounts: DepartmentWithEmployeeCount[] = departments.map((department) => {
     const match = employeesByDepartment.find((g) => g.department === department.name);
@@ -167,6 +85,15 @@ export default async function AppDepartmentsPage({
           Gérez les départements et visualisez le nombre d&apos;employés associés
         </p>
       </div>
+
+      <DepartmentsStatsCards
+        departments={departments}
+        employeesByDepartment={employeesByDepartment}
+        totalEmployees={totalEmployees}
+        activeEmployees={activeEmployees}
+        inactiveEmployees={inactiveEmployees}
+      />
+
       <Card className="border border-border/80 bg-card/90 shadow-sm">
         <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
@@ -176,15 +103,9 @@ export default async function AppDepartmentsPage({
             </CardDescription>
           </div>
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
-            <form className="w-full md:w-64" action="/departements" method="get">
-              <Input
-                type="text"
-                name="q"
-                placeholder="Rechercher un département..."
-                defaultValue={(await searchParams)?.q || ''}
-                className="h-9 text-sm"
-              />
-            </form>
+            <div className="w-full md:w-64">
+              <DepartmentsSearchForm initialQuery={(await searchParams)?.q || ''} />
+            </div>
             <Dialog>
               <DialogTrigger asChild>
                 <Button type="button" className="cursor-pointer">
@@ -198,158 +119,17 @@ export default async function AppDepartmentsPage({
                     Créez un nouveau département disponible pour votre équipe.
                   </DialogDescription>
                 </DialogHeader>
-                <form action={createDepartment} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="new-department-name">Nom du département</Label>
-                    <Input
-                      id="new-department-name"
-                      name="name"
-                      placeholder="Ex: Informatique, Ressources humaines..."
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-department-description">Description du département</Label>
-                    <Input
-                      id="new-department-description"
-                      name="description"
-                      placeholder="Description courte du département (optionnel)"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button type="submit">Créer</Button>
-                  </div>
-                </form>
+                <CreateDepartmentForm action={createDepartment} />
               </DialogContent>
             </Dialog>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="w-full overflow-x-auto">
-            <Table className="min-w-[640px] text-sm">
-              <TableHeader>
-                <TableRow className="bg-muted/60">
-                  <TableHead className="w-[220px]">Nom</TableHead>
-                  <TableHead>Description</TableHead>
-                  <TableHead className="w-[140px] text-center">Employés</TableHead>
-                  <TableHead className="w-[200px] text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredDepartments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                      Aucun département ne correspond à votre recherche.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                filteredDepartments.map((department) => {
-                  const count = department.employeesCount;
-                  const employeesLabel =
-                    count === 0
-                      ? '0 employé'
-                      : count === 1
-                      ? '1 employé'
-                      : `${count} employés`;
-
-                  const employeesClassName =
-                    count === 0
-                      ? 'text-xs text-muted-foreground'
-                      : 'inline-flex items-center rounded-full bg-primary/5 px-2 py-1 text-xs font-medium text-primary';
-
-                  return (
-                    <TableRow
-                      key={department.id}
-                      className="border-b last:border-b-0 transition-colors hover:bg-muted/40"
-                    >
-                      <TableCell className="font-medium">{department.name}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {department.description || '-'}
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <span className={employeesClassName}>{employeesLabel}</span>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button type="button" variant="outline" size="sm">
-                                Modifier
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Modifier le département</DialogTitle>
-                                <DialogDescription>
-                                  Renommez le département et mettez à jour les employés associés.
-                                </DialogDescription>
-                              </DialogHeader>
-                              <form action={updateDepartment} className="space-y-4">
-                                <input type="hidden" name="id" value={department.id} />
-                                <div className="space-y-2">
-                                  <Label htmlFor={`edit-name-${department.id}`}>
-                                    Nom du département
-                                  </Label>
-                                  <Input
-                                    id={`edit-name-${department.id}`}
-                                    name="name"
-                                    defaultValue={department.name}
-                                    required
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <Label htmlFor={`edit-description-${department.id}`}>
-                                    Description du département
-                                  </Label>
-                                  <Input
-                                    id={`edit-description-${department.id}`}
-                                    name="description"
-                                    defaultValue={department.description ?? ''}
-                                    placeholder="Description courte du département (optionnel)"
-                                  />
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                  <Button type="submit">Enregistrer</Button>
-                                </div>
-                              </form>
-                            </DialogContent>
-                          </Dialog>
-
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                disabled={count > 0}
-                              >
-                                Supprimer
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                              <DialogHeader>
-                                <DialogTitle>Supprimer le département</DialogTitle>
-                                <DialogDescription>
-                                  Cette action est irréversible. Êtes-vous sûr de vouloir supprimer ce
-                                  département&nbsp;?
-                                </DialogDescription>
-                              </DialogHeader>
-                              <form action={deleteDepartment} className="flex justify-end gap-2">
-                                <input type="hidden" name="id" value={department.id} />
-                                <Button type="submit" variant="destructive">
-                                  Confirmer
-                                </Button>
-                              </form>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }))}
-              </TableBody>
-            </Table>
-          </div>
+          <DepartmentsTable
+            data={filteredDepartments}
+            onUpdateDepartment={updateDepartment}
+            onDeleteDepartment={deleteDepartment}
+          />
         </CardContent>
       </Card>
     </div>

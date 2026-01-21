@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Shield, Key } from 'lucide-react';
-import { getUserPermissions } from '@/lib/security/rbac';
+import { getUserPermissions, type Permission } from '@/lib/security/rbac';
 
 interface PermissionBadgeProps {
   userId: string;
@@ -19,7 +19,7 @@ export async function PermissionBadge({ userId, userRole, variant = 'default' }:
     );
   }
 
-  let permissions: any[] = [];
+  let permissions: Permission[] = [];
   let error = null;
 
   try {

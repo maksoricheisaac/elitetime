@@ -6,13 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Download, Calendar, Users } from "lucide-react";
-import type { User, Pointage } from "@/generated/prisma/client";
+import type { User, Pointage, Break as BreakModel } from "@/generated/prisma/client";
+import { DataTable } from "@/components/ui/data-table";
+import type { ColumnDef } from "@tanstack/react-table";
 
 interface ManagerReportsClientProps {
   team: User[];
   pointages: Pointage[];
+  breaks: BreakModel[];
   overtimeThreshold: number;
 }
 
@@ -22,6 +24,7 @@ interface EmployeeStats {
   lateCount: number;
   absenceCount: number;
   overtimeHours: number;
+  totalBreakMinutes: number;
 }
 
 type Period = "day" | "week" | "month" | "quarter";
@@ -60,7 +63,75 @@ function countBusinessDays(start: Date, end: Date) {
   return count;
 }
 
-export default function ManagerReportsClient({ team, pointages, overtimeThreshold }: ManagerReportsClientProps) {
+const employeeStatsColumns: ColumnDef<EmployeeStats>[] = [
+  {
+    accessorKey: "employee",
+    header: () => <span>Employé</span>,
+    cell: ({ row }) => {
+      const employee = row.original.employee;
+      return (
+        <span className="font-medium">
+          {employee.firstname} {employee.lastname}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "department",
+    header: () => <span>Département</span>,
+    cell: ({ row }) => <span>{row.original.employee.department}</span>,
+  },
+  {
+    accessorKey: "totalHours",
+    header: () => <span>Heures travaillées</span>,
+    cell: ({ row }) => <span>{row.original.totalHours}h</span>,
+  },
+  {
+    accessorKey: "totalBreakMinutes",
+    header: () => <span>Heures de pause</span>,
+    cell: ({ row }) => (
+      <span>{Math.round(row.original.totalBreakMinutes / 60)}h</span>
+    ),
+  },
+  {
+    accessorKey: "lateCount",
+    header: () => <span>Retards</span>,
+    cell: ({ row }) => {
+      const value = row.original.lateCount;
+      return (
+        <span className={value > 0 ? "text-destructive font-semibold" : ""}>
+          {value}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "absenceCount",
+    header: () => <span>Absences</span>,
+    cell: ({ row }) => {
+      const value = row.original.absenceCount;
+      return (
+        <span className={value > 0 ? "text-warning font-semibold" : ""}>
+          {value}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "overtimeHours",
+    header: () => <span>Heures sup</span>,
+    cell: ({ row }) => {
+      const value = row.original.overtimeHours;
+      return (
+        <span className={value > 0 ? "text-success font-semibold" : ""}>
+          {value}h
+        </span>
+      );
+    },
+  },
+];
+
+export default function ManagerReportsClient({ team, pointages, breaks, overtimeThreshold }: ManagerReportsClientProps) {
   const { showSuccess, showError, showInfo } = useNotification();
   const [period, setPeriod] = useState<Period>("week");
   const [searchTerm, setSearchTerm] = useState("");
@@ -82,6 +153,13 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
     });
   }, [pointages, periodStart, now]);
 
+  const periodFilteredBreaks = useMemo(() => {
+    return breaks.filter((b) => {
+      const d = new Date(b.date as unknown as string);
+      return d >= periodStart && d <= now;
+    });
+  }, [breaks, periodStart, now]);
+
   const stats: EmployeeStats[] = useMemo(() => {
     const businessDays = countBusinessDays(periodStart, now);
     const threshold = overtimeThreshold || 40;
@@ -91,11 +169,19 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
         (p) => p.userId === employee.id
       );
 
+      const employeeBreaks = periodFilteredBreaks.filter(
+        (b) => b.userId === employee.id
+      );
+
       const totalMinutes = employeePointages.reduce(
         (sum, p) => sum + p.duration,
         0
       );
       const totalHours = Math.floor(totalMinutes / 60);
+      const totalBreakMinutes = employeeBreaks.reduce(
+        (sum, b) => sum + (b.duration || 0),
+        0
+      );
       const lateCount = employeePointages.filter((p) => p.status === "late").length;
 
       const workedDays = new Set(
@@ -114,9 +200,10 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
         lateCount,
         absenceCount,
         overtimeHours,
+        totalBreakMinutes,
       };
     });
-  }, [team, periodFilteredPointages, periodStart, now, overtimeThreshold]);
+  }, [team, periodFilteredPointages, periodFilteredBreaks, periodStart, now, overtimeThreshold]);
 
   const departments = useMemo(
     () =>
@@ -157,6 +244,7 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
         "Employé",
         "Département",
         "Heures travaillées",
+        "Heures de pause",
         "Retards",
         "Absences",
         "Heures sup",
@@ -165,6 +253,7 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
         `${s.employee.firstname} ${s.employee.lastname}`,
         s.employee.department || "",
         s.totalHours.toString(),
+        Math.round(s.totalBreakMinutes / 60).toString(),
         s.lateCount.toString(),
         s.absenceCount.toString(),
         s.overtimeHours.toString(),
@@ -578,60 +667,7 @@ export default function ManagerReportsClient({ team, pointages, overtimeThreshol
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="w-full overflow-x-auto">
-            <Table className="min-w-[900px]">
-            <TableHeader>
-              <TableRow>
-                <TableHead>Employé</TableHead>
-                <TableHead>Département</TableHead>
-                <TableHead>Heures travaillées</TableHead>
-                <TableHead>Retards</TableHead>
-                <TableHead>Absences</TableHead>
-                <TableHead>Heures sup</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStats.map(
-                ({ employee, totalHours, lateCount, absenceCount, overtimeHours }) => (
-                  <TableRow key={employee.id}>
-                    <TableCell className="font-medium">
-                      {employee.firstname} {employee.lastname}
-                    </TableCell>
-                    <TableCell>{employee.department}</TableCell>
-                    <TableCell>{totalHours}h</TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          lateCount > 0 ? "text-destructive font-semibold" : ""
-                        }
-                      >
-                        {lateCount}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          absenceCount > 0 ? "text-warning font-semibold" : ""
-                        }
-                      >
-                        {absenceCount}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          overtimeHours > 0 ? "text-success font-semibold" : ""
-                        }
-                      >
-                        {overtimeHours}h
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                )
-              )}
-            </TableBody>
-            </Table>
-          </div>
+          <DataTable columns={employeeStatsColumns} data={filteredStats} />
         </CardContent>
       </Card>
     </div>

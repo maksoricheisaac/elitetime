@@ -1,7 +1,8 @@
 "use server";
 
 import prisma from "@/lib/prisma";
-import { validateAndSanitize, CreateUserSchema, UpdateUserSchema, UserIdSchema } from "@/lib/validation/schemas";
+import { validateAndSanitize } from "@/lib/validation/schemas";
+import { CreateUserSchema, UpdateUserSchema, UserIdSchema } from "@/schemas/admin/users";
 import { requireAdmin } from "@/lib/security/rbac";
 import { logSecurityEvent } from "@/lib/security/rbac";
 

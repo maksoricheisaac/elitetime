@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { SESSION_COOKIE_NAME, sanitizeUser } from "@/lib/session";
 import { seedPermissions } from "@/lib/seed-permissions";
@@ -44,7 +43,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       message: "Permissions initialisées avec succès",
-      ...result,
+      ...(result ?? {}),
     });
   } catch (error) {
     console.error("Erreur lors de l'initialisation des permissions:", error);
