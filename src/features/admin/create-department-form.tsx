@@ -25,8 +25,9 @@ export function CreateDepartmentForm({ action }: CreateDepartmentFormProps) {
 
   const handleValidatedSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const formElement = event.currentTarget as HTMLFormElement;
     void form.handleSubmit(() => {
-      (event.currentTarget as HTMLFormElement).submit();
+      formElement.submit();
     })(event);
   };
 

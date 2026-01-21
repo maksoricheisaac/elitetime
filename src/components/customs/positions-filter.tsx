@@ -41,7 +41,7 @@ export function PositionsFilter({ departments, selectedDepartment }: PositionsFi
   if (departments.length <= 1) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
+    <div className="flex flex-wrap items-center gap-3">
       <div className="space-y-2">
         <Label htmlFor="department" className="text-sm text-muted-foreground">
           Filtrer par département

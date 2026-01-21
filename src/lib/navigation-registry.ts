@@ -81,6 +81,14 @@ export const navigationRegistry: NavigationGroup[] = [
         requiredPermissions: ['view_employees'],
       },
       {
+        id: 'pointages_manual',
+        to: '/pointages/manual',
+        icon: Clock,
+        label: 'Saisie manuelle',
+        allowedRoles: ['admin', 'manager', 'employee'],
+        requiredPermissions: ['edit_pointages'],
+      },
+      {
         id: 'departements',
         to: '/departements',
         icon: Settings,

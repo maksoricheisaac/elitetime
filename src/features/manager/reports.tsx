@@ -297,6 +297,11 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
       const mutedTextColor = rgb(0.4, 0.4, 0.45);
       const tableHeaderBg = rgb(0.95, 0.96, 0.98);
       const tableRowAltBg = rgb(0.985, 0.99, 1);
+      const contextBg = rgb(0.98, 0.98, 0.985);
+
+      const lateColor = rgb(0.8, 0.2, 0.2);
+      const absenceColor = rgb(0.8, 0.45, 0.2);
+      const overtimeColor = rgb(0.1, 0.55, 0.32);
 
       const periodLabel =
         period === "day"
@@ -307,15 +312,23 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           ? "Mois en cours"
           : "Trimestre en cours";
 
+      const departmentLabel =
+        filterDepartment === "all"
+          ? "Tous les départements"
+          : `Département : ${filterDepartment}`;
+
+      const employeesLabel = `${filteredStats.length} employé(s) dans ce rapport`;
+
       const generatedAt = new Date().toLocaleString();
 
       let pageNumber = 0;
 
-      const createPage = () => {
+      const createPage = (mode: "table" | "anomalies" = "table") => {
         const page = pdfDoc.addPage();
         const { width, height } = page.getSize();
         pageNumber += 1;
 
+        // Bandeau d'en-tête principal
         page.drawRectangle({
           x: 0,
           y: height - headerHeight,
@@ -324,7 +337,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           color: primaryColor,
         });
 
-        page.drawText("Rapport de l'équipe", {
+        page.drawText("EliteTime – Rapport de l'équipe", {
           x: margin,
           y: height - headerHeight + 32,
           size: 20,
@@ -349,6 +362,36 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           color: mutedTextColor,
         });
 
+        // Bloc de contexte (filtres, effectif)
+        const tableWidth = width - margin * 2;
+        const contextTopY = height - headerHeight - 28;
+        const contextHeight = 32;
+
+        page.drawRectangle({
+          x: margin,
+          y: contextTopY - contextHeight,
+          width: tableWidth,
+          height: contextHeight,
+          color: contextBg,
+        });
+
+        page.drawText(departmentLabel, {
+          x: margin + 8,
+          y: contextTopY - 12,
+          size: 9,
+          font: fontRegular,
+          color: mutedTextColor,
+        });
+
+        page.drawText(employeesLabel, {
+          x: margin + 8,
+          y: contextTopY - 24,
+          size: 9,
+          font: fontRegular,
+          color: mutedTextColor,
+        });
+
+        // Pied de page (date de génération + pagination)
         page.drawText(`Généré le ${generatedAt}`, {
           x: margin,
           y: margin / 2,
@@ -367,76 +410,85 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           color: mutedTextColor,
         });
 
-        const tableTopY = height - headerHeight - 34;
-        const tableWidth = width - margin * 2;
+        // Début de la zone de contenu sous le bloc de contexte
+        const tableTopY = contextTopY - contextHeight - 6;
 
-        page.drawRectangle({
-          x: margin,
-          y: tableTopY - rowHeight + 4,
-          width: tableWidth,
-          height: rowHeight,
-          color: tableHeaderBg,
-        });
+        let colNameX = 0;
+        let colDeptX = 0;
+        let colHoursX = 0;
+        let colLateX = 0;
+        let colAbsX = 0;
+        let colOvertimeX = 0;
 
-        const colNameWidth = tableWidth * 0.3;
-        const colDeptWidth = tableWidth * 0.2;
-        const colHoursWidth = tableWidth * 0.1;
-        const colLateWidth = tableWidth * 0.1;
-        const colAbsWidth = tableWidth * 0.15;
+        if (mode === "table") {
+          page.drawRectangle({
+            x: margin,
+            y: tableTopY - rowHeight + 4,
+            width: tableWidth,
+            height: rowHeight,
+            color: tableHeaderBg,
+          });
 
-        const colNameX = margin + 10;
-        const colDeptX = colNameX + colNameWidth;
-        const colHoursX = colDeptX + colDeptWidth;
-        const colLateX = colHoursX + colHoursWidth;
-        const colAbsX = colLateX + colLateWidth;
-        const colOvertimeX = colAbsX + colAbsWidth;
+          const colNameWidth = tableWidth * 0.3;
+          const colDeptWidth = tableWidth * 0.2;
+          const colHoursWidth = tableWidth * 0.1;
+          const colLateWidth = tableWidth * 0.1;
+          const colAbsWidth = tableWidth * 0.15;
 
-        page.drawText("Employé", {
-          x: colNameX,
-          y: tableTopY,
-          size: 10,
-          font: fontBold,
-          color: textColor,
-        });
-        page.drawText("Département", {
-          x: colDeptX,
-          y: tableTopY,
-          size: 10,
-          font: fontBold,
-          color: textColor,
-        });
-        page.drawText("Heures", {
-          x: colHoursX,
-          y: tableTopY,
-          size: 10,
-          font: fontBold,
-          color: textColor,
-        });
-        page.drawText("Retards", {
-          x: colLateX,
-          y: tableTopY,
-          size: 10,
-          font: fontBold,
-          color: textColor,
-        });
-        page.drawText("Absences", {
-          x: colAbsX,
-          y: tableTopY,
-          size: 10,
-          font: fontBold,
-          color: textColor,
-        });
-        page.drawText("Heures sup", {
-          x: colOvertimeX,
-          y: tableTopY,
-          size: 10,
-          font: fontBold,
-          color: textColor,
-        });
+          colNameX = margin + 10;
+          colDeptX = colNameX + colNameWidth;
+          colHoursX = colDeptX + colDeptWidth;
+          colLateX = colHoursX + colHoursWidth;
+          colAbsX = colLateX + colLateWidth;
+          colOvertimeX = colAbsX + colAbsWidth;
+
+          page.drawText("Employé", {
+            x: colNameX,
+            y: tableTopY,
+            size: 10,
+            font: fontBold,
+            color: textColor,
+          });
+          page.drawText("Département", {
+            x: colDeptX,
+            y: tableTopY,
+            size: 10,
+            font: fontBold,
+            color: textColor,
+          });
+          page.drawText("Heures", {
+            x: colHoursX,
+            y: tableTopY,
+            size: 10,
+            font: fontBold,
+            color: textColor,
+          });
+          page.drawText("Retards", {
+            x: colLateX,
+            y: tableTopY,
+            size: 10,
+            font: fontBold,
+            color: textColor,
+          });
+          page.drawText("Absences", {
+            x: colAbsX,
+            y: tableTopY,
+            size: 10,
+            font: fontBold,
+            color: textColor,
+          });
+          page.drawText("Heures sup", {
+            x: colOvertimeX,
+            y: tableTopY,
+            size: 10,
+            font: fontBold,
+            color: textColor,
+          });
+        }
 
         return {
           page,
-          y: tableTopY - rowHeight,
+          y: mode === "table" ? tableTopY - rowHeight : tableTopY,
           colNameX,
           colDeptX,
           colHoursX,
@@ -515,7 +567,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           y,
           size: 10,
           font: fontRegular,
-          color: textColor,
+          color: s.lateCount > 0 ? lateColor : textColor,
         });
 
         page.drawText(String(s.absenceCount), {
@@ -523,7 +575,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           y,
           size: 10,
           font: fontRegular,
-          color: textColor,
+          color: s.absenceCount > 0 ? absenceColor : textColor,
         });
 
         page.drawText(`${s.overtimeHours}h`, {
@@ -531,11 +583,63 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           y,
           size: 10,
           font: fontRegular,
-          color: textColor,
+          color: s.overtimeHours > 0 ? overtimeColor : textColor,
         });
 
         y -= rowHeight;
       });
+
+      // Section r		sum		e des anomalies & alertes
+      const anomalies = filteredStats.filter(
+        (s) => s.lateCount > 0 || s.absenceCount > 0 || s.overtimeHours > 0
+      );
+
+      if (anomalies.length > 0) {
+        let anomaliesPage = page;
+        let anomaliesY = y - rowHeight;
+
+        if (anomaliesY < margin + footerHeight + rowHeight * 4) {
+          const newPage = createPage("anomalies");
+          anomaliesPage = newPage.page;
+          anomaliesY = newPage.y - rowHeight;
+        }
+
+        anomaliesPage.drawText("Anomalies & alertes", {
+          x: margin,
+          y: anomaliesY,
+          size: 12,
+          font: fontBold,
+          color: textColor,
+        });
+        anomaliesY -= rowHeight;
+
+        anomalies.forEach((s) => {
+          if (anomaliesY < margin + footerHeight + rowHeight) {
+            const newPage = createPage("anomalies");
+            anomaliesPage = newPage.page;
+            anomaliesY = newPage.y - rowHeight;
+          }
+
+          const parts: string[] = [];
+          if (s.lateCount > 0) parts.push(`${s.lateCount} retard(s)`);
+          if (s.absenceCount > 0) parts.push(`${s.absenceCount} absence(s)`);
+          if (s.overtimeHours > 0) parts.push(`${s.overtimeHours}h sup`);
+
+          const line = `${s.employee.firstname} ${s.employee.lastname} – ${parts.join(
+            " · "
+          )}`;
+
+          anomaliesPage.drawText(line, {
+            x: margin,
+            y: anomaliesY,
+            size: 10,
+            font: fontRegular,
+            color: textColor,
+          });
+
+          anomaliesY -= rowHeight;
+        });
+      }
 
       const pdfBytes = await pdfDoc.save();
       const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });

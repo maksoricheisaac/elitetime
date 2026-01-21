@@ -111,7 +111,7 @@ export const AdminSidebar = memo(() => {
 
   if (isLoading || permissionsLoading) {
     return (
-      <Sidebar collapsible="icon" className="bg-cyan-600 border-cyan-600">
+      <Sidebar collapsible="icon" className="bg-primary border-primary">
         <SidebarHeader>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -128,7 +128,7 @@ export const AdminSidebar = memo(() => {
       </SidebarHeader>
       <SidebarContent>
         <div className="flex items-center justify-center h-32">
-          <div className="text-sm text-cyan-100">Chargement de la navigation...</div>
+          <div className="text-sm text-primary-foreground/80">Chargement de la navigation...</div>
         </div>
       </SidebarContent>
       <SidebarRail />
@@ -137,7 +137,7 @@ export const AdminSidebar = memo(() => {
   }
 
   return (
-    <Sidebar collapsible="icon" className="bg-cyan-600 border-cyan-600">
+    <Sidebar collapsible="icon" className="bg-primary border-primary">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
@@ -176,15 +176,15 @@ export const AdminSidebar = memo(() => {
                         className={
                           `transition-colors duration-200 ease-out rounded-lg px-3 py-3 text-gray-100 relative overflow-hidden ` +
                           (isActive
-                            ? 'border-l-4 border-white/80 bg-primary/10 text-white shadow-md before:absolute before:inset-0 before:bg-primary/20 before:-translate-y-full hover:before:translate-y-0'
-                            : 'text-muted-foreground hover:bg-sidebar-accent/60 before:absolute before:inset-0 before:bg-transparent before:-translate-y-full hover:before:translate-y-0 hover:before:bg-white/5')
+                            ? 'border-l-4 border-primary-foreground/80 bg-primary/10 text-primary-foreground shadow-md before:absolute before:inset-0 before:bg-primary/20 before:-translate-y-full hover:before:translate-y-0'
+                            : 'text-muted-foreground hover:bg-sidebar-accent/60 before:absolute before:inset-0 before:bg-transparent before:-translate-y-full hover:before:translate-y-0 hover:before:bg-primary-foreground/5')
                         }
                       >
                         <Link 
                           prefetch={false} 
                           href={mi.to}
                           aria-current={isActive ? 'page' : undefined}
-                          className="flex w-full items-center gap-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 text-white relative overflow-hidden transition-all duration-300 ease-out before:absolute before:inset-0 before:bg-white/5 before:-translate-y-full hover:before:translate-y-0 hover:before:bg-white/10"
+                          className="flex w-full items-center gap-5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:gap-0 text-primary-foreground relative overflow-hidden transition-all duration-300 ease-out before:absolute before:inset-0 before:bg-primary-foreground/5 before:-translate-y-full hover:before:translate-y-0 hover:before:bg-primary-foreground/10"
                         >
                           <span
                             className={
@@ -193,8 +193,8 @@ export const AdminSidebar = memo(() => {
                                 : 'h-2 w-2 rounded-full bg-transparent transition-all duration-300 group-data-[collapsible=icon]:hidden'
                             }
                           />
-                          <Icon className="h-4 w-4 shrink-0 text-white font-semibold transition-transform duration-300 group-hover:scale-110" />
-                          <span className="truncate group-data-[collapsible=icon]:hidden text-white font-semibold transition-all duration-300 group-hover:text-white/90">
+                          <Icon className="h-4 w-4 shrink-0 text-primary-foreground font-semibold transition-transform duration-300 group-hover:scale-110" />
+                          <span className="truncate group-data-[collapsible=icon]:hidden text-primary-foreground font-semibold transition-all duration-300 group-hover:text-primary-foreground/90">
                             {mi.label}
                           </span>
                           {/* Badge indicateur pour certains éléments */}

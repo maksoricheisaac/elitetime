@@ -221,14 +221,23 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          Pointages
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="inline-flex items-center gap-2 rounded-full bg-primary/5 px-3 py-1 text-xs font-medium text-primary">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              Pointages
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">Pointages de mon équipe</h1>
+            <p className="text-sm text-muted-foreground">
+              Consultez les pointages, la présence et les absences de votre équipe en détail
+            </p>
+          </div>
+          <Button asChild variant="outline" className="mt-1 md:mt-0">
+            <Link href="/pointages/manual">
+              Saisie manuelle
+            </Link>
+          </Button>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight">Pointages de mon équipe</h1>
-        <p className="text-sm text-muted-foreground">
-          Consultez les pointages, la présence et les absences de votre équipe en détail
-        </p>
       </div>
 
       
