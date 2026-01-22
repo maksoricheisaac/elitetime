@@ -146,7 +146,7 @@ export const DashboardHeader = memo(
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="relative h-9 w-9"
+                  className="relative h-9 w-9 cursor-pointer"
                   aria-label="Notifications de retard"
                 >
                   <Bell className="h-4 w-4 text-white" />

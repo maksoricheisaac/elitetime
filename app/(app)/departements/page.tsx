@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -109,7 +110,8 @@ export default async function AppDepartmentsPage({
             <Dialog>
               <DialogTrigger asChild>
                 <Button type="button" className="cursor-pointer">
-                  Nouveau département
+                  <Plus className="h-4 w-4" />
+                  <span>Nouveau département</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>

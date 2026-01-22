@@ -121,6 +121,38 @@ export async function getEmployeeTodayPointage(userId: string) {
 export async function startEmployeePointage(userId: string) {
   if (!userId) return null;
 
+  const userStatus = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { status: true },
+  });
+
+  if (!userStatus || userStatus.status !== "active") {
+    throw new Error("Votre compte est inactif ou supprimé. Le pointage est désactivé.");
+  }
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const approvedLeaveToday = await prisma.absence.findFirst({
+    where: {
+      userId,
+      type: "conge",
+      status: "approved",
+      startDate: {
+        lte: todayEnd,
+      },
+      endDate: {
+        gte: todayStart,
+      },
+    },
+  });
+
+  if (approvedLeaveToday) {
+    throw new Error("Vous êtes en congé aujourd'hui. Le pointage est désactivé.");
+  }
+
   const existingActive = await prisma.pointage.findFirst({
     where: {
       userId,

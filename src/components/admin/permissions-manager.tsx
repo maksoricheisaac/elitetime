@@ -281,6 +281,7 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
                     size="sm"
                     onClick={() => setSelectedPermissionIds(new Set(userPermissionIds))}
                     disabled={isLoading || selectedUser.role === 'admin' || !isDirty}
+                    className="cursor-pointer"
                   >
                     Réinitialiser
                   </Button>
@@ -288,6 +289,7 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
                     size="sm"
                     onClick={applyChanges}
                     disabled={isLoading || selectedUser.role === 'admin' || !isDirty}
+                    className="cursor-pointer"
                   >
                     Enregistrer
                   </Button>

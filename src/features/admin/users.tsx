@@ -48,11 +48,8 @@ import {
   adminEditUserFormSchema,
   adminUsersFiltersSchema,
   type AdminCreateUserFormInput,
-  type AdminCreateUserFormValues,
   type AdminEditUserFormInput,
-  type AdminEditUserFormValues,
   type AdminUsersFiltersInput,
-  type AdminUsersFiltersValues,
 } from "@/schemas/admin/forms/users";
 
 
@@ -113,6 +110,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
 
   const departments = ["Développement", "Commercial", "RH", "Comptabilité", "Direction"];
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const { search = "", role, department } = filtersForm.watch();
   const normalizedSearch = search.toLowerCase();
   const filterRole = role ?? "all";
@@ -287,6 +285,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
         return (
           <div className="flex gap-2">
             <Button
+              className="cursor-pointer"
               size="sm"
               variant="ghost"
               onClick={() => {
@@ -298,7 +297,10 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
                   role: user.role,
                   department: user.department || "",
                   position: user.position || "",
-                  status: user.status || "active",
+                  status:
+                    user.status === "active" || user.status === "inactive"
+                      ? user.status
+                      : "inactive",
                 });
                 setEditDialogOpen(true);
               }}
@@ -306,6 +308,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
               <Edit className="h-4 w-4" />
             </Button>
             <Button
+              className="cursor-pointer"
               size="sm"
               variant="ghost"
               onClick={() => {
@@ -470,7 +473,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
                   />
 
                   <DialogFooter>
-                    <Button type="submit" disabled={isPending}>
+                    <Button className="cursor-pointer" type="submit" disabled={isPending}>
                       Ajouter
                     </Button>
                   </DialogFooter>
@@ -630,7 +633,7 @@ export default function AdminUsersClient({ users }: AdminUsersClientProps) {
                 />
 
                 <DialogFooter>
-                  <Button type="submit" disabled={isPending}>
+                  <Button className="cursor-pointer" type="submit" disabled={isPending}>
                     Enregistrer
                   </Button>
                 </DialogFooter>

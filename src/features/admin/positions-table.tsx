@@ -3,6 +3,7 @@
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -74,8 +75,9 @@ export function PositionsTable({
           <div className="flex flex-wrap justify-end gap-2">
             <Dialog>
               <DialogTrigger asChild>
-                <Button type="button" variant="outline" size="sm">
-                  Modifier
+                <Button className="cursor-pointer" type="button" variant="outline" size="sm">
+                  <Pencil className="h-3 w-3" />
+                  <span>Modifier</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -127,7 +129,10 @@ export function PositionsTable({
                     />
                   </div>
                   <div className="flex justify-end gap-2">
-                    <Button type="submit">Enregistrer</Button>
+                    <Button className="cursor-pointer" type="submit">
+                      <Pencil className="h-3 w-3" />
+                      <span>Enregistrer</span>
+                    </Button>
                   </div>
                 </form>
               </DialogContent>
@@ -135,8 +140,9 @@ export function PositionsTable({
 
             <Dialog>
               <DialogTrigger asChild>
-                <Button type="button" variant="outline" size="sm">
-                  Supprimer
+                <Button className="cursor-pointer" type="button" variant="destructive" size="sm">
+                  <Trash2 className="h-3 w-3" />
+                  <span>Supprimer</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -149,8 +155,9 @@ export function PositionsTable({
                 </DialogHeader>
                 <form action={onDeletePosition} className="flex justify-end gap-2">
                   <input type="hidden" name="id" value={position.id} />
-                  <Button type="submit" variant="destructive">
-                    Confirmer
+                  <Button className="cursor-pointer" type="submit" variant="destructive">
+                    <Trash2 className="h-3 w-3" />
+                    <span>Confirmer</span>
                   </Button>
                 </form>
               </DialogContent>

@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Plus, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -87,7 +88,8 @@ export default async function AppPositionsPage({
           <Dialog>
             <DialogTrigger asChild>
               <Button type="button" className="cursor-pointer">
-                Nouveau poste
+                <Plus className="h-4 w-4" />
+                <span>Nouveau poste</span>
               </Button>
             </DialogTrigger>
             <DialogContent>
@@ -131,7 +133,10 @@ export default async function AppPositionsPage({
                   />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <Button type="submit">Créer</Button>
+                  <Button type="submit" className="cursor-pointer">
+                    <Check className="h-4 w-4" />
+                    <span>Créer</span>
+                  </Button>
                 </div>
               </form>
             </DialogContent>

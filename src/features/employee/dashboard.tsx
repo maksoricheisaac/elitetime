@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNotification } from "@/contexts/notification-context";
 import { useRealtime } from "@/contexts/realtime-context";
-import { AlertCircle, Clock, Coffee, TrendingUp, X } from "lucide-react";
+import { AlertCircle, Coffee, X } from "lucide-react";
 import type { SafeUser } from "@/lib/session";
 import type { Pointage, Break as BreakModel } from "@/generated/prisma/client";
 import { useRouter } from "next/navigation";
@@ -28,6 +28,7 @@ interface EmployeeDashboardClientProps {
 	workStartTime: string;
 	workEndTime: string;
 	initialBreaks: Break[];
+	isOnLeaveToday?: boolean;
 }
 
 export default function EmployeeDashboardClient({
@@ -37,6 +38,7 @@ export default function EmployeeDashboardClient({
 	workStartTime,
 	workEndTime,
 	initialBreaks,
+	isOnLeaveToday = false,
 }: EmployeeDashboardClientProps) {
 	const { showSuccess, showInfo, showError } = useNotification();
 	const router = useRouter();
@@ -159,48 +161,10 @@ export default function EmployeeDashboardClient({
 	});
 	};
 
-	const { hours: weekHours, lates: weekLates, overtime: weekOvertime } = weekStats;
+	const { lates: weekLates, overtime: weekOvertime } = weekStats;
 	const [showAlertCard, setShowAlertCard] = useState(
 	todayPointage?.status === "late" || weekLates > 0 || weekOvertime > 0,
 	);
-
-	const WEEK_TARGET_HOURS = 40;
-
-	let weekHoursLabel = "Dans la cible";
-	let weekHoursLabelClass = "text-emerald-600";
-	if (weekHours < WEEK_TARGET_HOURS - 5) {
-	weekHoursLabel = "En dessous de la cible";
-	weekHoursLabelClass = "text-amber-600";
-	} else if (weekHours > WEEK_TARGET_HOURS + 5) {
-	weekHoursLabel = "Au-dessus de la cible";
-	weekHoursLabelClass = "text-primary";
-	}
-
-	let weekLatesLabel = "Aucun retard enregistré";
-	let weekLatesLabelClass = "text-emerald-600";
-	if (weekLates === 0) {
-	weekLatesLabel = "Aucun retard enregistré";
-	weekLatesLabelClass = "text-emerald-600";
-	} else if (weekLates <= 2) {
-	weekLatesLabel = "Quelques retards, à surveiller";
-	weekLatesLabelClass = "text-amber-600";
-	} else {
-	weekLatesLabel = "Plusieurs retards cette semaine";
-	weekLatesLabelClass = "text-destructive";
-	}
-
-	let weekOvertimeLabel = "Pas d'heures supplémentaires cette semaine";
-	let weekOvertimeLabelClass = "text-muted-foreground";
-	if (weekOvertime === 0) {
-	weekOvertimeLabel = "Pas d'heures supplémentaires cette semaine";
-	weekOvertimeLabelClass = "text-muted-foreground";
-	} else if (weekOvertime <= 5) {
-	weekOvertimeLabel = "Volume d'heures sup. raisonnable";
-	weekOvertimeLabelClass = "text-emerald-600";
-	} else {
-	weekOvertimeLabel = "Charge élevée en heures sup. cette semaine";
-	weekOvertimeLabelClass = "text-amber-600";
-	}
 
 	const today = new Date();
 	const todayISO = today.toISOString().split("T")[0];
@@ -266,21 +230,30 @@ export default function EmployeeDashboardClient({
 
 	dayActions.sort((a, b) => a.order - b.order);
 
-	const currentStatusLabel = isOnBreak
+	const currentStatusLabel = isOnLeaveToday
+	? "En congé"
+	: isOnBreak
 	? "En pause"
 	: isActive
 	? "En activité"
 	: "Hors service";
 
-	const currentStatusDescription = !isActive
+	const currentStatusDescription = isOnLeaveToday
+	? "Vous êtes en congé aujourd'hui. Le pointage est désactivé."
+	: !isActive
 	? "Commencez votre journée en pointant votre arrivée."
 	: isOnBreak
 	? "Vous êtes actuellement en pause."
 	: "Votre journée de travail est en cours.";
 
-	const primaryCtaLabel = !isActive ? "Pointer mon arrivée" : "Pointer ma sortie";
+	const primaryCtaLabel = isOnLeaveToday
+	? "En congé aujourd'hui"
+	: !isActive
+	? "Pointer mon arrivée"
+	: "Pointer ma sortie";
 
 	const handlePrimaryCta = () => {
+	if (isOnLeaveToday) return;
 	if (!isActive) {
 		handlePointageEntry();
 	} else {
@@ -288,7 +261,7 @@ export default function EmployeeDashboardClient({
 	}
 	};
 
-	const primaryCtaDisabled = isPending;
+	const primaryCtaDisabled = isPending || isOnLeaveToday;
 
 	return (
 	<div className="space-y-6 lg:space-y-8">
@@ -327,7 +300,7 @@ export default function EmployeeDashboardClient({
 				type="button"
 				variant="ghost"
 				size="icon"
-				className="ml-auto h-6 w-6 rounded-full text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30"
+				className="ml-auto h-6 w-6 rounded-full text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 cursor-pointer"
 				onClick={() => {
 					setShowAlertCard(false);
 					if (todayPointage?.status === "late") {
@@ -353,7 +326,9 @@ export default function EmployeeDashboardClient({
 			<span className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
 				<span
 				className={`h-2.5 w-2.5 rounded-full ${
-					isOnBreak
+					isOnLeaveToday
+					? "bg-muted"
+					: isOnBreak
 					? "bg-warning animate-pulse"
 					: isActive
 					? "bg-success animate-pulse"
@@ -375,7 +350,9 @@ export default function EmployeeDashboardClient({
 				</p>
 			) : (
 				<p className="text-sm text-muted-foreground">
-				Vous n&apos;avez pas encore pointé aujourd&apos;hui.
+				{isOnLeaveToday
+					? "Vous êtes en congé aujourd'hui."
+					: "Vous n&apos;avez pas encore pointé aujourd&apos;hui."}
 					</p>
 				)}
 				<div className="space-y-2">
@@ -392,7 +369,7 @@ export default function EmployeeDashboardClient({
 				onClick={handlePrimaryCta}
 				disabled={primaryCtaDisabled}
 				variant={isActive ? "destructive" : "default"}
-				className="h-12 text-base font-semibold"
+				className="h-12 text-base font-semibold cursor-pointer"
 			>
 				{primaryCtaLabel}
 			</Button>
@@ -416,10 +393,10 @@ export default function EmployeeDashboardClient({
 			<CardContent>
 			<Button
 				onClick={handleBreakStart}
-				disabled={!isActive || isOnBreak || !isInBreakTimeRange}
+				disabled={!isActive || isOnBreak || !isInBreakTimeRange || isOnLeaveToday}
 				variant="outline"
-				className={`w-full h-16 text-lg font-semibold rounded-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed ${
-				isActive && !isOnBreak && isInBreakTimeRange
+				className={`w-full h-16 text-lg font-semibold rounded-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer${
+				isActive && !isOnBreak && isInBreakTimeRange && !isOnLeaveToday
 					? "border-primary bg-primary/10 text-primary"
 					: "border-border text-muted-foreground"
 				}`}
@@ -430,6 +407,8 @@ export default function EmployeeDashboardClient({
 				? "Pause en cours"
 				: !isInBreakTimeRange
 				? "Hors plage horaire"
+				: isOnLeaveToday
+				? "En congé aujourd'hui"
 				: "Démarrer Pause"}
 			</Button>
 			<p className="mt-2 text-center text-sm text-muted-foreground">
@@ -449,15 +428,19 @@ export default function EmployeeDashboardClient({
 			<CardContent>
 			<Button
 				onClick={handleBreakEnd}
-				disabled={!isOnBreak}
+				disabled={!isOnBreak || isOnLeaveToday}
 				variant="outline"
-				className={`w-full h-16 text-lg font-semibold rounded-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed ${
-				isOnBreak
+				className={`w-full h-16 text-lg font-semibold rounded-lg transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer${
+				isOnBreak && !isOnLeaveToday
 					? "border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:border-emerald-400 dark:text-emerald-200"
 					: "border-border text-muted-foreground"
 				}`}
 			>
-				{!isOnBreak ? "Aucune pause active" : "Terminer Pause"}
+				{!isOnBreak
+					? "Aucune pause active"
+					: isOnLeaveToday
+					? "En congé aujourd'hui"
+					: "Terminer Pause"}
 			</Button>
 			<p className="mt-2 text-center text-sm text-muted-foreground">
 				{currentTime.toLocaleTimeString("fr-FR")}
@@ -476,16 +459,24 @@ export default function EmployeeDashboardClient({
 			<div className="flex items-center gap-4">
 				<div
 				className={`h-4 w-4 rounded-full ${
-					isActive && !isOnBreak
-					? "bg-success animate-pulse"
+					isOnLeaveToday
+					? "bg-muted"
 					: isOnBreak
 					? "bg-warning animate-pulse"
+					: isActive
+					? "bg-success animate-pulse"
 					: "bg-muted"
 				}`}
 				/>
 				<div>
 				<p className="font-semibold">
-					{isOnBreak ? "En pause" : isActive ? "En activité" : "Hors service"}
+					{isOnLeaveToday
+						? "En congé"
+						: isOnBreak
+						? "En pause"
+						: isActive
+						? "En activité"
+						: "Hors service"}
 				</p>
 				{todayPointage?.entryTime && (
 					<p className="text-sm text-muted-foreground">

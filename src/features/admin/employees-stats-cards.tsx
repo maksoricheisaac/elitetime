@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { User, Department, Position } from "@/generated/prisma/client";
-import { Users, UserCheck, UserX, Briefcase, Building, Shield } from "lucide-react";
+import { Users, UserCheck, Building, Shield } from "lucide-react";
 
 interface EmployeesStatsCardsProps {
   employees: User[];
@@ -14,7 +14,6 @@ export function EmployeesStatsCards({
   departments,
   positions,
 }: EmployeesStatsCardsProps) {
-  const allEmployees = employees;
   const realEmployees = employees.filter(e => e.role === "employee");
   const totalEmployees = realEmployees.length;
   const activeEmployees = realEmployees.filter(e => e.status === "active").length;
@@ -32,15 +31,6 @@ export function EmployeesStatsCards({
     (acc, e) => {
       const dept = e.department || "Non assigné";
       acc[dept] = (acc[dept] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  const byPosition = realEmployees.reduce(
-    (acc, e) => {
-      const pos = e.position || "Non assigné";
-      acc[pos] = (acc[pos] || 0) + 1;
       return acc;
     },
     {} as Record<string, number>

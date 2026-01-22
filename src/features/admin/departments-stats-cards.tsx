@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Department, User } from "@/generated/prisma/client";
-import { Building, Users, UserCheck, UserX, TrendingUp } from "lucide-react";
+import type { Department } from "@/generated/prisma/client";
+import { Building, Users, UserCheck, TrendingUp } from "lucide-react";
 
 interface DepartmentsStatsCardsProps {
   departments: Department[];

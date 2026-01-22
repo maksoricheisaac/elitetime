@@ -11,7 +11,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useRouter } from 'next/navigation';
 import logo from '@public/logo/logo.png'
 import Image from 'next/image';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, LogIn } from 'lucide-react';
 import { LoginSchema, type LoginData } from '@/schemas/auth/login';
 
 export default function LoginPage(){
@@ -122,7 +122,7 @@ export default function LoginPage(){
                             <button
                               type="button"
                               onClick={() => setShowPassword((prev) => !prev)}
-                              className="absolute inset-y-0 right-2 flex items-center justify-center text-muted-foreground hover:text-foreground"
+                              className="absolute inset-y-0 right-2 flex items-center justify-center text-muted-foreground hover:text-foreground cursor-pointer"
                               aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
                             >
                               {showPassword ? (
@@ -158,7 +158,10 @@ export default function LoginPage(){
                       Connexion en cours...
                     </span>
                   ) : (
-                    'Se connecter'
+                    <span className="flex items-center gap-2">
+                      <LogIn className="h-4 w-4" />
+                      <span>Se connecter</span>
+                    </span>
                   )}
                 </Button>
               </form>

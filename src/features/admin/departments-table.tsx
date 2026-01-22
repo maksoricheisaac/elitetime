@@ -8,8 +8,8 @@ import type { Department } from "@/generated/prisma/client";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Pencil, Trash2 } from "lucide-react";
 import {
   departmentUpdateFormSchema,
   type DepartmentUpdateFormValues,
@@ -92,7 +92,7 @@ function DepartmentEditDialog({ department, onUpdateDepartment }: DepartmentEdit
           />
         </div>
         <div className="flex justify-end gap-2">
-          <Button type="submit" disabled={form.formState.isSubmitting}>
+          <Button className="cursor-pointer" type="submit" disabled={form.formState.isSubmitting}>
             Enregistrer
           </Button>
         </div>
@@ -142,8 +142,9 @@ export function DepartmentsTable({ data, onUpdateDepartment, onDeleteDepartment 
           <div className="flex flex-wrap justify-end gap-2">
             <Dialog>
               <DialogTrigger asChild>
-                <Button type="button" variant="outline" size="sm">
-                  Modifier
+                <Button className="cursor-pointer" type="button" variant="outline" size="sm">
+                  <Pencil className="h-3 w-3" />
+                  <span>Modifier</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -164,11 +165,13 @@ export function DepartmentsTable({ data, onUpdateDepartment, onDeleteDepartment 
               <DialogTrigger asChild>
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="destructive"
                   size="sm"
                   disabled={count > 0}
+                  className="cursor-pointer"
                 >
-                  Supprimer
+                  <Trash2 className="h-3 w-3" />
+                  <span>Supprimer</span>
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -181,8 +184,9 @@ export function DepartmentsTable({ data, onUpdateDepartment, onDeleteDepartment 
                 </DialogHeader>
                 <form action={onDeleteDepartment} className="flex justify-end gap-2">
                   <input type="hidden" name="id" value={department.id} />
-                  <Button type="submit" variant="destructive">
-                    Confirmer
+                  <Button className="cursor-pointer" type="submit" variant="destructive">
+                    <Trash2 className="h-3 w-3" />
+                    <span>Confirmer</span>
                   </Button>
                 </form>
               </DialogContent>

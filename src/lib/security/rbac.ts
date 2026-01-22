@@ -2,15 +2,16 @@ import { cookies } from "next/headers";
 import prisma from "@/lib/prisma";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 import { validateAndSanitize, UserIdSchema } from "@/lib/validation/schemas";
-import type { UserRole } from "@/generated/prisma/enums";
+import type { UserRole, UserStatus } from "@/generated/prisma/enums";
 
 // Types pour la sécurité
 export interface AuthenticatedUser {
+  department: string | null;
   id: string;
   username: string;
   email: string | null;
   role: UserRole;
-  status: string;
+  status: UserStatus;
   firstname: string | null;
   lastname: string | null;
 }
@@ -76,6 +77,7 @@ export async function getAuthenticatedUser(): Promise<AuthContext> {
           status: true,
           firstname: true,
           lastname: true,
+          department: true,
         },
       },
     },
@@ -191,8 +193,10 @@ export async function logSecurityEvent(
   userId: string,
   action: string,
   details: string,
-  ipAddress?: string,
-  userAgent?: string
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _ipAddress?: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _userAgent?: string
 ): Promise<void> {
   try {
     await prisma.activityLog.create({

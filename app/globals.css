@@ -31,25 +31,25 @@
 }
 
 .dark {
-  --background: #020617;
-  --foreground: #e5e7eb;
-  --card: #020617;
+  --background: #020617; /* slate-950 */
+  --foreground: #e5e7eb; /* slate-200 */
+  --card: #020617; /* couche intermédiaire légèrement plus claire que le fond pur */
   --card-foreground: #e5e7eb;
   --popover: #020617;
   --popover-foreground: #e5e7eb;
-  --primary: #22d3ee;
-  --primary-foreground: #083344;
-  --secondary: #111827;
+  --primary: #2563eb; /* blue-600 pour un accent moins "cyan" */
+  --primary-foreground: #0b1120; /* texte sombre sur boutons bleus */
+  --secondary: #020617; /* cartes secondaires très sombres */
   --secondary-foreground: #e5e7eb;
-  --muted: #111827;
-  --muted-foreground: #9ca3af;
-  --accent: #083344;
-  --accent-foreground: #ecfeff;
-  --destructive: #f97373;
-  --border: #1f2937;
-  --input: #1f2937;
-  --ring: #22d3ee;
-  --chart-1: #22d3ee;
+  --muted: #020617; /* sections atténuées mais intégrées au fond */
+  --muted-foreground: #9ca3af; /* texte secondaire lisible */
+  --accent: #0f172a; /* léger relief pour hover / accents */
+  --accent-foreground: #e5e7eb;
+  --destructive: #f97373; /* rouge plus visible sur fond sombre */
+  --border: #1e293b; /* slate-800, plus visible que noir pur */
+  --input: #1e293b;
+  --ring: #2563eb;
+  --chart-1: #2563eb;
   --chart-2: #22c55e;
   --chart-3: #f97316;
   --chart-4: #eab308;
@@ -91,6 +91,14 @@
 body {
   background: var(--background);
   color: var(--foreground);
+}
+
+body.dark {
+  /* Légère mise en valeur du fond en dark mode sur toute l'app */
+  background:
+    radial-gradient(circle at top left, rgba(15, 23, 42, 0.85), transparent 55%),
+    radial-gradient(circle at bottom right, rgba(8, 47, 73, 0.7), transparent 55%),
+    var(--background);
 }
 
 @layer base {

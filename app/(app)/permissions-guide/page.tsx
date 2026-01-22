@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Shield, Key, Users, Settings, FileText, Clock, CheckCircle } from 'lucide-react';
+import { Shield, Key, Users, Settings, FileText, Clock, CheckCircle, Activity } from 'lucide-react';
 import Link from 'next/link';
 
 const PERMISSION_CATEGORIES = [
@@ -46,6 +46,14 @@ const PERMISSION_CATEGORIES = [
       { name: 'view_all_absences', description: 'Voir toutes les absences' },
       { name: 'view_team_absences', description: 'Voir les absences de son équipe' },
       { name: 'validate_absences', description: 'Approuver ou rejeter les demandes d\'absence' },
+    ],
+  },
+  {
+    name: 'logs',
+    icon: Activity,
+    description: 'Consultation des journaux d\'activité (logs système)',
+    permissions: [
+      { name: 'view_logs', description: 'Voir les logs système (activités, connexions, etc.)' },
     ],
   },
   {
@@ -221,7 +229,7 @@ export default function PermissionsGuidePage() {
       </Card>
 
       <div className="flex justify-center">
-        <Button asChild size="lg">
+        <Button asChild size="lg" className="cursor-pointer">
           <Link href="/permissions">
             <Shield className="mr-2 h-4 w-4" />
             Gérer les permissions

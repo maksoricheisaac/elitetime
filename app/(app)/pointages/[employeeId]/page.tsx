@@ -2,14 +2,15 @@ import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { requireNavigationAccessById } from "@/lib/navigation-guard";
 import { EmployeePointagesDetailTable, type EmployeePointageDetailRow } from "@/features/manager/employee-pointages-detail-table";
+import { ArrowLeft } from "lucide-react";
+import { EmployeePointagesPeriodFilter } from "@/features/manager/employee-pointages-period-filter";
 
 interface PointageDetailPageProps {
   params: Promise<{ employeeId: string }>;
-  searchParams?: { period?: string };
+  searchParams?: Promise<{ period?: string }>;
 }
 
 export default async function PointageDetailPage({ params, searchParams }: PointageDetailPageProps) {
@@ -29,7 +30,7 @@ export default async function PointageDetailPage({ params, searchParams }: Point
     redirect("/pointages");
   }
 
-  const period = searchParams?.period ?? "30"; // en jours ou "all"
+  const period = (await searchParams)?.period ?? "30"; // en jours ou "all"
 
   let since: Date | null = null;
   if (period !== "all") {
@@ -108,8 +109,11 @@ export default async function PointageDetailPage({ params, searchParams }: Point
             Historique des pointages et pauses pour cet employé.
           </p>
         </div>
-        <Button type="button" variant="outline" asChild>
-          <Link href="/pointages">Retour</Link>
+        <Button type="button" variant="outline" asChild className="cursor-pointer">
+          <Link href="/pointages" className="inline-flex items-center gap-2">
+            <ArrowLeft className="h-4 w-4" />
+            <span>Retour</span>
+          </Link>
         </Button>
       </div>
 
@@ -121,25 +125,9 @@ export default async function PointageDetailPage({ params, searchParams }: Point
               Vue détaillée des heures d&apos;entrée, de sortie, des durées et des pauses associées.
             </CardDescription>
           </div>
-          <form className="inline-flex flex-col gap-1 text-xs text-muted-foreground md:flex-row md:items-end md:gap-3">
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="period-select">Période</Label>
-              <select
-                id="period-select"
-                name="period"
-                defaultValue={period}
-                className="h-8 rounded-md border bg-background px-2 text-xs"
-              >
-                <option value="7">7 derniers jours</option>
-                <option value="30">30 derniers jours</option>
-                <option value="90">90 derniers jours</option>
-                <option value="all">Tout l&apos;historique</option>
-              </select>
-            </div>
-            <Button type="submit" variant="outline" size="sm" className="mt-2 md:mt-0">
-              Filtrer
-            </Button>
-          </form>
+          <div className="inline-flex flex-col md:flex-row md:items-end md:justify-between md:gap-3">
+            <EmployeePointagesPeriodFilter period={period} />
+          </div>
         </CardHeader>
         <CardContent>
           {rows.length === 0 ? (

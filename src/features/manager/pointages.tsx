@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
-import { Eye } from "lucide-react";
 import type { User, Pointage, Absence } from "@/generated/prisma/client";
 import { Label } from "@/components/ui/label";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
+import { PresenceChart } from "@/components/charts/presence-chart";
 
 interface ManagerPointagesClientProps {
   team: User[];
@@ -28,6 +28,10 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
+  const [range, setRange] = useState<"week" | "month">("week");
+
+  const days = range === "week" ? 7 : 30;
+  const rangeLabel = range === "week" ? "7 derniers jours" : "30 derniers jours";
 
   const todayKey = useMemo(() => {
     const d = new Date();
@@ -49,16 +53,57 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
     [todayPointages]
   );
 
-  const weekRange = useMemo(() => {
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-    const start = new Date(end);
-    const day = start.getDay();
-    const diff = (day + 6) % 7;
-    start.setDate(start.getDate() - diff);
-    start.setHours(0, 0, 0, 0);
-    return { start, end };
-  }, []);
+  const onLeaveTodayIds = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const ids = new Set<string>();
+    for (const a of absences) {
+      if (a.status !== "approved" || a.type !== "conge") continue;
+      const start = new Date(a.startDate as unknown as string);
+      const end = new Date(a.endDate as unknown as string);
+      if (start <= todayEnd && end >= todayStart) {
+        ids.add(a.userId);
+      }
+    }
+    return ids;
+  }, [absences]);
+
+  const presenceData = useMemo(() => {
+    const data = Array.from({ length: days }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - ((days - 1) - i));
+
+      const dayStart = new Date(date);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      const employeeIdsWithPointage = new Set(
+        pointages
+          .filter((p) => {
+            const d = new Date(p.date as unknown as string);
+            return d >= dayStart && d <= dayEnd;
+          })
+          .map((p) => p.userId)
+      );
+
+      const presents = employeeIdsWithPointage.size;
+      const total = team.length;
+      const absents = Math.max(0, total - presents);
+
+      return {
+        date: date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }),
+        presents,
+        absents,
+        total,
+      };
+    });
+
+    return data;
+  }, [days, pointages, team]);
 
   const departments = useMemo(
     () =>
@@ -95,47 +140,26 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
 
   const todayRows = useMemo(
     () =>
-      team
-        .filter(
-          (employee) =>
-            departmentFilter === "all" || employee.department === departmentFilter
-        )
-        .map((employee) => {
-          const employeeTodayPointages = todayPointages
-            .filter((p) => p.userId === employee.id)
-            .sort(
-              (a, b) =>
-                new Date(b.date as unknown as string).getTime() -
-                new Date(a.date as unknown as string).getTime()
-            );
+      filteredTeam.map((employee) => {
+        const employeeTodayPointages = todayPointages
+          .filter((p) => p.userId === employee.id)
+          .sort(
+            (a, b) =>
+              new Date(b.date as unknown as string).getTime() -
+              new Date(a.date as unknown as string).getTime()
+          );
 
-          const lastPointage = employeeTodayPointages[0] ?? null;
+        const lastPointage = employeeTodayPointages[0] ?? null;
 
-          return { employee, pointage: lastPointage };
-        }),
-    [team, todayPointages, departmentFilter]
+        return { employee, pointage: lastPointage };
+      }),
+    [filteredTeam, todayPointages]
   );
 
-  const getEmployeeDetails = (employeeId: string) => {
-    const employeePointages = pointages
-      .filter((p) => p.userId === employeeId)
-      .sort(
-        (a, b) =>
-          new Date(b.date as unknown as string).getTime() -
-          new Date(a.date as unknown as string).getTime()
-      )
-      .slice(0, 10);
-
-    const employeeAbsences = absences
-      .filter((a) => a.userId === employeeId)
-      .sort(
-        (a, b) =>
-          new Date(b.startDate as unknown as string).getTime() -
-          new Date(a.startDate as unknown as string).getTime()
-      );
-
-    return { pointages: employeePointages, absences: employeeAbsences };
-  };
+  const totalEmployees = team.length;
+  const presentCount = new Set(presentToday.map((p) => p.userId)).size;
+  const onLeaveCount = onLeaveTodayIds.size;
+  const absentCount = Math.max(0, totalEmployees - presentCount - onLeaveCount);
 
   const todayColumns: ColumnDef<TodayRow>[] = [
     {
@@ -187,12 +211,17 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
       header: () => <span>Statut</span>,
       cell: ({ row }) => {
         const pointage = row.original.pointage;
+        const employee = row.original.employee;
+        const isOnLeave = onLeaveTodayIds.has(employee.id);
 
         let statusLabel = "Non pointé";
         let statusVariant: "default" | "secondary" | "outline" | "destructive" = "secondary";
         let statusClassName = "";
 
-        if (pointage) {
+        if (!pointage && isOnLeave) {
+          statusLabel = "En congé";
+          statusVariant = "secondary";
+        } else if (pointage) {
           if (pointage.isActive) {
             statusLabel = "En activité";
             statusVariant = "default";
@@ -232,82 +261,67 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
               Consultez les pointages, la présence et les absences de votre équipe en détail
             </p>
           </div>
-          <Button asChild variant="outline" className="mt-1 md:mt-0">
+          
+          <div className="grid grid-cols-2 gap-2">
+            <Select value={range} onValueChange={(value: "week" | "month") => setRange(value)}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Période" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="week">7 derniers jours</SelectItem>
+                <SelectItem value="month">30 derniers jours</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button asChild variant="outline" className="mt-1 md:mt-0 cursor-pointer">
             <Link href="/pointages/manual">
               Saisie manuelle
             </Link>
           </Button>
+          </div>
         </div>
       </div>
 
-      
+      <div className="grid gap-4 grid-cols-1 lg:grid-cols-4 items-stretch">
+        {/* Colonne gauche – Synthèse (1/4) */}
+        <Card className="lg:col-span-1 h-full">
+          <CardHeader>
+            <CardTitle>Synthèse de la présence aujourd&apos;hui</CardTitle>
+            <CardDescription>
+              Vue d&apos;ensemble des présences et absences sur l&apos;équipe pour la journée
+            </CardDescription>
+          </CardHeader>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {filteredTeam.map((employee) => {
-          const isPresent = presentToday.some((p) => p.userId === employee.id);
-          const { pointages: employeePointages, absences: employeeAbsences } =
-            getEmployeeDetails(employee.id);
-          const weekHours = Math.floor(
-            employeePointages
-              .filter((p) => {
-                const d = new Date(p.date as unknown as string);
-                return d >= weekRange.start && d <= weekRange.end;
-              })
-              .reduce((sum, p) => sum + p.duration, 0) / 60
-          );
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Effectif total</span>
+              <span className="font-semibold">{totalEmployees}</span>
+            </div>
 
-          return (
-            <Card
-              key={employee.id}
-              className="border border-border/80 bg-card/90 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-lg"
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="text-4xl">{employee.avatar}</div>
-                    <div>
-                      <CardTitle className="text-lg">
-                        {employee.firstname} {employee.lastname}
-                      </CardTitle>
-                      <CardDescription>{employee.position}</CardDescription>
-                    </div>
-                  </div>
-                  <div
-                    className={`h-3 w-3 rounded-full ${
-                      isPresent ? "bg-success animate-pulse" : "bg-muted"
-                    }`}
-                  />
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Statut</span>
-                  <Badge
-                    variant={isPresent ? "default" : "secondary"}
-                    className={isPresent ? "bg-success" : ""}
-                  >
-                    {isPresent ? "Présent" : "Absent"}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Heures (semaine)</span>
-                  <span className="font-semibold">{weekHours}h</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Département</span>
-                  <span className="text-sm">{employee.department}</span>
-                </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Présents</span>
+              <span className="font-semibold text-success">{presentCount}</span>
+            </div>
 
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href={`/pointages/${employee.id}`}>
-                    <Eye className="mr-2 h-4 w-4" />
-                    Voir détails
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          );
-        })}
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">En congé</span>
+              <span className="font-semibold">{onLeaveCount}</span>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Absents</span>
+              <span className="font-semibold">{absentCount}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Colonne droite – Graphique (3/4) */}
+        <div className="lg:col-span-3 h-full space-y-3 flex flex-col">
+          <PresenceChart
+            data={presenceData}
+            title={`Présence de l&apos;équipe sur les ${rangeLabel}`}
+            description={`Nombre de collaborateurs présents et absents sur les ${rangeLabel.toLowerCase()}`}
+          />
+        </div>
       </div>
 
       <Card>
@@ -361,6 +375,7 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
                 </SelectContent>
               </Select>
             )}
+            
           </div>
           <DataTable columns={todayColumns} data={todayRows} />
         </CardContent>

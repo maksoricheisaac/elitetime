@@ -1,16 +1,17 @@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut } from "lucide-react";
+import { LogOut, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
+import Link from "next/link";
 
 export const UserNav = () => {
     const { user, logout } = useAuth();
- 
+
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-11 rounded-full px-3 hover:bg-primary/5 transition-all">
+              <Button variant="ghost" className="relative h-11 rounded-full px-3 hover:bg-primary/5 transition-all cursor-pointer">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-9 w-9 ring-2 ring-white">
                     <AvatarFallback className="bg-primary text-white font-semibold text-sm">
@@ -42,6 +43,15 @@ export const UserNav = () => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              {user && user.role !== "employee" && (
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link href={user.role === "manager" ? "/manager/profile" : "/profile"}>
+                    <UserIcon className="mr-2 h-4 w-4" />
+                    Profil
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {user && user.role !== "employee" && <DropdownMenuSeparator />}
               <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
                 Déconnexion

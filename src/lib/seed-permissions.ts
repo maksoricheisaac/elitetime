@@ -25,6 +25,9 @@ const PERMISSIONS = [
   { name: "view_team_absences", description: "Voir les absences de son équipe", category: "absences" },
   { name: "validate_absences", description: "Valider les demandes d'absence", category: "absences" },
   
+  // Logs / audit
+  { name: "view_logs", description: "Voir les logs système (activités, connexions, etc.)", category: "logs" },
+  
   // Paramètres
   { name: "view_settings", description: "Voir les paramètres système", category: "parametres" },
   { name: "edit_settings", description: "Modifier les paramètres système", category: "parametres" },

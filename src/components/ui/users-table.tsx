@@ -65,7 +65,7 @@ export const UsersTable = memo(({ onAddUser }: UsersTableProps) => {
             <TrendingUp className="h-4 w-4" />
             <span>+12%</span>
           </div>
-          <Button variant="outline" size="sm" onClick={onAddUser}>
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={onAddUser}>
             <Plus className="mr-2 h-4 w-4" />
             <span className="hidden sm:inline">Add User</span>
             <span className="sm:hidden">Add</span>
@@ -132,7 +132,7 @@ export const UsersTable = memo(({ onAddUser }: UsersTableProps) => {
                 <span>{new Date(user.joinDate).toLocaleDateString()}</span>
               </div>
 
-              <Button variant="ghost" size="sm" className="ml-auto">
+              <Button variant="ghost" size="sm" className="ml-auto cursor-pointer">
                 <MoreHorizontal className="h-4 w-4" />
               </Button>
             </div>

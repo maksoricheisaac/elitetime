@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { User, Mail, Briefcase, Building } from 'lucide-react';
+import { User, Mail, Briefcase, Building, Check } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
@@ -88,7 +88,10 @@ export default async function AppEmployeeProfile() {
                   />
                 </div>
               </div>
-              <Button type="submit">Enregistrer les modifications</Button>
+              <Button type="submit" className="inline-flex items-center gap-2 cursor-pointer">
+                <Check className="h-4 w-4" />
+                <span>Enregistrer les modifications</span>
+              </Button>
             </form>
           </CardContent>
         </Card>

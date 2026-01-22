@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Activity, Search, Filter } from "lucide-react";
+import { Activity, Search, Filter, ChevronLeft, ChevronRight, Printer } from "lucide-react";
 import type { ActivityLog, User } from "@/generated/prisma/client";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -255,9 +255,26 @@ export default function LogsClient({ logs }: LogsClientProps) {
 
       {/* Liste des logs */}
       <Card>
-        <CardHeader>
-          <CardTitle>Historique des activités ({filteredLogs.length})</CardTitle>
-          <CardDescription>Toutes les actions importantes effectuées dans le système</CardDescription>
+        <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>Historique des activités ({filteredLogs.length})</CardTitle>
+            <CardDescription>
+              Toutes les actions importantes effectuées dans le système
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="cursor-pointer"
+              onClick={() => window.print()}
+              disabled={filteredLogs.length === 0}
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              <span>Imprimer</span>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {filteredLogs.length === 0 ? (
@@ -274,19 +291,23 @@ export default function LogsClient({ logs }: LogsClientProps) {
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="cursor-pointer"
                     disabled={currentPage === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                   >
-                    Précédent
+                    <ChevronLeft className="h-4 w-4" />
+                    <span>Précédent</span>
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="cursor-pointer"
                     disabled={currentPage === totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   >
-                    Suivant
+                    <span>Suivant</span>
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

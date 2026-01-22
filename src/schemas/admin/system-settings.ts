@@ -14,6 +14,9 @@ export const SystemSettingsSchema = z.object({
   emailNotificationsEnabled: z.boolean(),
   lateAlertsEnabled: z.boolean(),
   pointageRemindersEnabled: z.boolean(),
+  ldapSyncEnabled: z.boolean(),
+  ldapSyncIntervalMinutes: z.number().int().min(1).max(1440),
+  ldapLastSyncAt: z.string().datetime().nullable().optional(),
 });
 
 export type SystemSettingsData = z.infer<typeof SystemSettingsSchema>;

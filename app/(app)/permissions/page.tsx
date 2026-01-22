@@ -51,7 +51,7 @@ export default async function PermissionsPage() {
             <Shield className="h-3 w-3" />
             Permissions
           </div>
-          <Button variant="outline" size="sm" asChild>
+          <Button variant="outline" size="sm" asChild className='cursor-pointer'>
             <Link href="/permissions-guide">
               <HelpCircle className="h-4 w-4 mr-2" />
               Guide

@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useNotification } from "@/contexts/notification-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Calendar, Users } from "lucide-react";
+import { Download, Calendar, Users, Eye } from "lucide-react";
 import type { User, Pointage, Break as BreakModel } from "@/generated/prisma/client";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -126,6 +127,23 @@ const employeeStatsColumns: ColumnDef<EmployeeStats>[] = [
         <span className={value > 0 ? "text-success font-semibold" : ""}>
           {value}h
         </span>
+      );
+    },
+  },
+  {
+    id: "actions",
+    header: () => <span className="block text-right">Actions</span>,
+    cell: ({ row }) => {
+      const employee = row.original.employee;
+      return (
+        <div className="flex justify-end">
+          <Button className="cursor-pointer" asChild variant="outline" size="sm">
+            <Link href={`/reports/${employee.id}`} className="inline-flex items-center gap-1">
+              <Eye className="h-3 w-3" />
+              <span>Voir plus</span>
+            </Link>
+          </Button>
+        </div>
       );
     },
   },
@@ -671,11 +689,11 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleExport}>
+          <Button className="cursor-pointer" variant="outline" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
             CSV
           </Button>
-          <Button onClick={handleExportPdf} disabled={isExportingPdf}>
+          <Button className="cursor-pointer" onClick={handleExportPdf} disabled={isExportingPdf}>
             <Download className="mr-2 h-4 w-4" />
             {isExportingPdf ? "Génération..." : "Télécharger le PDF"}
           </Button>

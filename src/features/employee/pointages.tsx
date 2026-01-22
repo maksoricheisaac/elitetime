@@ -112,7 +112,7 @@ const pointagesColumns: ColumnDef<Pointage>[] = [
   },
 ];
 
-export default function EmployeePointagesClient({ pointages, canEdit }: EmployeePointagesClientProps) {
+export default function EmployeePointagesClient({ pointages }: EmployeePointagesClientProps) {
   const [range, setRange] = useState<"week" | "month">("month");
   const days = range === "week" ? 7 : 30;
   const rangeLabel = range === "week" ? "7 derniers jours" : "30 derniers jours";

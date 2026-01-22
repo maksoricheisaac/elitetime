@@ -19,7 +19,7 @@ export const employeeUpdateFormSchema = z.object({
     .nullable()
     .optional(),
   role: z.enum(["employee", "team_lead", "manager", "admin"]),
-  status: z.enum(["active", "inactive"]),
+  status: z.enum(["active", "inactive", "deleted"]),
   department: z
     .string()
     .max(100, "Département trop long")

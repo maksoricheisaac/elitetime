@@ -3,9 +3,10 @@ import prisma from '@/lib/prisma';
 import type { User } from '@/generated/prisma/client';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { EmployeesUpdateNotifier } from '@/features/admin/employees-update-notifier';
+import { EmployeesSyncNotifier } from '@/features/admin/employees-sync-notifier';
 import { EmployeesStatsCards } from '@/features/admin/employees-stats-cards';
 import EmployeesTable from '@/features/admin/employees-table';
-import { updateEmployee } from '@/actions/admin/employees';
+import { updateEmployee, syncEmployeesFromLdap } from '@/actions/admin/employees';
 
 
 export default async function AppEmployeesPage({
@@ -85,6 +86,7 @@ export default async function AppEmployeesPage({
     
         </div>
         <EmployeesUpdateNotifier />
+        <EmployeesSyncNotifier />
 
         <EmployeesStatsCards
           employees={employees}
@@ -98,6 +100,7 @@ export default async function AppEmployeesPage({
           departments={departments.map((d) => ({ id: d.id, name: d.name }))}
           positions={positions}
           onUpdateEmployee={updateEmployee}
+          onSyncFromLdap={syncEmployeesFromLdap}
         />
       </div>
     </>

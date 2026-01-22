@@ -51,6 +51,8 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
       overtimeThreshold: initialSettings.overtimeThreshold,
       holidays: (initialSettings.holidays as string[]) ?? [],
       notificationsEnabled: initialSettings.notificationsEnabled,
+      ldapSyncEnabled: initialSettings.ldapSyncEnabled,
+      ldapSyncIntervalMinutes: initialSettings.ldapSyncIntervalMinutes,
       newHoliday: "",
     },
     mode: "onSubmit",
@@ -172,6 +174,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
     });
   };
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const holidays = form.watch("holidays");
 
   return (
@@ -195,6 +198,9 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
           </TabsTrigger>
           <TabsTrigger value="notifications" className="text-xs md:text-sm">
             Notifications
+          </TabsTrigger>
+          <TabsTrigger value="ldap" className="text-xs md:text-sm">
+            LDAP / AD
           </TabsTrigger>
           <TabsTrigger value="danger" className="text-xs md:text-sm text-destructive">
             Zone de danger
@@ -275,8 +281,115 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                   )}
                 />
               </div>
-              <Button type="button" onClick={handleSaveGeneral} disabled={isPending}>
+              <Button className="cursor-pointer" type="button" onClick={handleSaveGeneral} disabled={isPending}>
                 Enregistrer les modifications
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ldap" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Synchronisation LDAP / Active Directory
+              </CardTitle>
+              <CardDescription>
+                Configuration de la synchronisation automatique des employés depuis l&apos;annuaire LDAP/AD
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <Label className="text-base">Activer la synchronisation automatique</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Lorsque cette option est activée, un job serveur synchronise régulièrement la liste des employés
+                    avec l&apos;annuaire LDAP/AD.
+                  </p>
+                </div>
+                <FormField
+                  control={form.control}
+                  name="ldapSyncEnabled"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Switch
+                          id="ldapSyncEnabled"
+                          checked={field.value}
+                          onCheckedChange={(value) => field.onChange(value)}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="ldapSyncIntervalMinutes"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Intervalle de synchronisation (minutes)</FormLabel>
+                      <FormControl>
+                        <Input
+                          id="ldapSyncIntervalMinutes"
+                          type="number"
+                          min={5}
+                          max={1440}
+                          value={field.value == null ? "" : String(field.value)}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Fréquence à laquelle le job serveur tente une synchronisation automatique.
+                      </p>
+                    </FormItem>
+                  )}
+                />
+
+                {initialSettings.ldapLastSyncAt && (
+                  <div className="space-y-1">
+                    <Label className="text-base">Dernière synchronisation réussie</Label>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(initialSettings.ldapLastSyncAt).toLocaleString("fr-FR")}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <Button
+                className="cursor-pointer"
+                type="button"
+                onClick={() => {
+                  void form.handleSubmit((values) => {
+                    const parsed = systemSettingsFormSchema
+                      .pick({ ldapSyncEnabled: true, ldapSyncIntervalMinutes: true })
+                      .safeParse(values);
+                    if (!parsed.success) {
+                      applyZodErrors(parsed.error);
+                      showError("Veuillez corriger les champs LDAP en erreur.");
+                      return;
+                    }
+                    startTransition(async () => {
+                      try {
+                        await adminUpdateSystemSettings({
+                          ldapSyncEnabled: parsed.data.ldapSyncEnabled,
+                          ldapSyncIntervalMinutes: parsed.data.ldapSyncIntervalMinutes,
+                        });
+                        showSuccess("Paramètres LDAP enregistrés");
+                      } catch {
+                        showError("Impossible d'enregistrer les paramètres LDAP pour le moment.");
+                      }
+                    });
+                  })();
+                }}
+                disabled={isPending}
+              >
+                Enregistrer les paramètres LDAP
               </Button>
             </CardContent>
           </Card>
@@ -314,7 +427,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                   </FormItem>
                 )}
               />
-              <Button type="button" onClick={handleSaveGeneral} disabled={isPending}>
+              <Button className="cursor-pointer" type="button" onClick={handleSaveGeneral} disabled={isPending}>
                 Enregistrer
               </Button>
             </CardContent>
@@ -345,7 +458,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                     </FormItem>
                   )}
                 />
-                <Button type="button" onClick={handleAddHoliday} disabled={isPending}>
+                <Button className="cursor-pointer" type="button" onClick={handleAddHoliday} disabled={isPending}>
                   <Plus className="mr-2 h-4 w-4" />
                   Ajouter
                 </Button>
@@ -366,7 +479,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                     <button
                       type="button"
                       onClick={() => handleRemoveHoliday(date)}
-                      className="ml-2 hover:text-destructive"
+                      className="ml-2 hover:text-destructive cursor-pointer"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -456,7 +569,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
             <CardContent className="space-y-3">
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start cursor-pointer">
                     Réinitialiser tous les pointages
                   </Button>
                 </AlertDialogTrigger>
@@ -478,7 +591,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start">
+                  <Button variant="outline" className="w-full justify-start cursor-pointer">
                     Exporter toutes les données
                   </Button>
                 </AlertDialogTrigger>
@@ -499,7 +612,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="destructive" className="w-full justify-start">
+                  <Button variant="destructive" className="w-full justify-start cursor-pointer">
                     Supprimer toutes les données (⚠️ Irréversible)
                   </Button>
                 </AlertDialogTrigger>

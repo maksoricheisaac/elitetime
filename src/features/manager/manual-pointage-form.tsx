@@ -137,7 +137,7 @@ export function ManualPointageForm({ managerId, employees }: ManualPointageFormP
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button type="submit" disabled={isPending || form.formState.isSubmitting}>
+          <Button className="cursor-pointer" type="submit" disabled={isPending || form.formState.isSubmitting}>
             {isPending || form.formState.isSubmitting ? "Enregistrement..." : "Enregistrer le pointage"}
           </Button>
         </div>

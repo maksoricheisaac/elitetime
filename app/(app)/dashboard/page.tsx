@@ -25,11 +25,29 @@ export default async function AppDashboardPage() {
   }
 
   if (user.role === "employee") {
-    const [todayPointage, weekStats, systemSettings, todayBreaks] = await Promise.all([
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const [todayPointage, weekStats, systemSettings, todayBreaks, todayLeave] = await Promise.all([
       getEmployeeTodayPointage(user.id),
       getEmployeeWeekStats(user.id),
       getSystemSettings(),
       getEmployeeTodayBreaks(user.id),
+      prisma.absence.findFirst({
+        where: {
+          userId: user.id,
+          type: "conge",
+          status: "approved",
+          startDate: {
+            lte: todayEnd,
+          },
+          endDate: {
+            gte: todayStart,
+          },
+        },
+      }),
     ]);
 
     return (
@@ -40,6 +58,7 @@ export default async function AppDashboardPage() {
         workStartTime={systemSettings.workStartTime}
         workEndTime={systemSettings.workEndTime}
         initialBreaks={todayBreaks}
+        isOnLeaveToday={Boolean(todayLeave)}
       />
     );
   }

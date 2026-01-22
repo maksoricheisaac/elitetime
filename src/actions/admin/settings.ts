@@ -37,8 +37,8 @@ export async function getSystemSettings(): Promise<SystemSettings> {
 
 export async function adminGetSystemSettings(): Promise<SystemSettings> {
   // Vérifier les permissions admin
-  const auth = await requireAdmin();
-  
+  await requireAdmin();
+
   return getSystemSettings();
 }
 

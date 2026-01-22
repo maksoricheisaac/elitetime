@@ -5,7 +5,7 @@ import prisma from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const auth = await requireAdmin();
+    await requireAdmin();
     
     // Récupérer tous les utilisateurs avec leurs permissions
     const users = await prisma.user.findMany({

@@ -35,6 +35,13 @@ export const systemSettingsFormSchema = z.object({
   newHoliday: z
     .string()
     .regex(/^$|^\d{4}-\d{2}-\d{2}$/, "Date invalide (aaaa-mm-jj)"),
+  ldapSyncEnabled: z.boolean(),
+  ldapSyncIntervalMinutes: z
+    .coerce
+    .number()
+    .int()
+    .min(5, "Minimum 5 minutes")
+    .max(1440, "Maximum 1440 minutes"),
 });
 
 export type SystemSettingsFormInput = z.input<typeof systemSettingsFormSchema>;

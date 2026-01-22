@@ -3,6 +3,7 @@ import { createServer } from "http";
 import next from "next";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 import prisma from "./src/lib/prisma";
+import { syncEmployeesFromLdapCore } from "./src/lib/ldap-sync-employees";
 
 interface LateAlertPayload {
   userId: string;
@@ -73,6 +74,59 @@ function isWithinPointageExitReminderWindow(now: Date) {
   const end = start + POINTAGE_EXIT_REMINDER_WINDOW_MINUTES;
   const current = getMinutesOfDayLocal(now);
   return isBetweenInclusive(current, start, end);
+}
+
+function scheduleLdapSyncTask() {
+  const DEFAULT_INTERVAL_MINUTES = 60;
+
+  const scheduleNext = (intervalMinutes: number) => {
+    const safeInterval = Number.isFinite(intervalMinutes) && intervalMinutes > 0 ? intervalMinutes : DEFAULT_INTERVAL_MINUTES;
+    const delayMs = safeInterval * 60_000;
+
+    setTimeout(() => {
+      void runOnce();
+    }, delayMs);
+
+    console.log(`[scheduler:ldap-sync] next run in ${safeInterval} minute(s)`);
+  };
+
+  async function runOnce() {
+    let intervalMinutes = DEFAULT_INTERVAL_MINUTES;
+
+    try {
+      const settings = await prisma.systemSettings.findFirst({
+        select: {
+          id: true,
+          ldapSyncEnabled: true,
+          ldapSyncIntervalMinutes: true,
+        },
+      });
+
+      if (settings?.ldapSyncIntervalMinutes && settings.ldapSyncIntervalMinutes > 0) {
+        intervalMinutes = settings.ldapSyncIntervalMinutes;
+      }
+
+      if (!settings?.ldapSyncEnabled) {
+        console.log("[scheduler:ldap-sync] disabled in system settings, skipping sync");
+      } else {
+        const now = new Date();
+        const { syncedCount } = await syncEmployeesFromLdapCore();
+
+        await prisma.systemSettings.update({
+          where: { id: settings.id },
+          data: { ldapLastSyncAt: now },
+        });
+
+        console.log(`[scheduler:ldap-sync] synchronized ${syncedCount} employees`);
+      }
+    } catch (err) {
+      console.error("[scheduler:ldap-sync] failed", err);
+    } finally {
+      scheduleNext(intervalMinutes);
+    }
+  }
+
+  void runOnce();
 }
 
 function scheduleDailyTask(hour: number, minute: number, taskName: string, fn: () => Promise<void>) {
@@ -287,4 +341,10 @@ app.prepare().then(() => {
       console.error("[scheduler:auto-close-pointages] unable to schedule", err);
     }
   })();
+
+  try {
+    scheduleLdapSyncTask();
+  } catch (err) {
+    console.error("[scheduler:ldap-sync] unable to schedule", err);
+  }
 });
