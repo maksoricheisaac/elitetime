@@ -1,37 +1,81 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import Link from "next/link";
-import type { User, Pointage, Absence } from "@/generated/prisma/client";
+import type { User, Pointage, Absence, Break } from "@/generated/prisma/client";
+import { Download } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PresenceChart } from "@/components/charts/presence-chart";
+import { useNotification } from "@/contexts/notification-context";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { EmployeeReportDateRangeFilter } from "@/features/manager/employee-report-date-range-filter";
 
 interface ManagerPointagesClientProps {
   team: User[];
   pointages: Pointage[];
   absences: Absence[];
+  breaks: Break[];
 }
 
 type TodayRow = {
   employee: User;
   pointage: Pointage | null;
+  breaks: Break[];
 };
 
-export default function ManagerPointagesClient({ team, pointages, absences }: ManagerPointagesClientProps) {
+export default function ManagerPointagesClient({ team, pointages, absences, breaks }: ManagerPointagesClientProps) {
+  const { showSuccess, showError, showInfo } = useNotification();
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
-  const [range, setRange] = useState<"week" | "month">("week");
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  const days = range === "week" ? 7 : 30;
-  const rangeLabel = range === "week" ? "7 derniers jours" : "30 derniers jours";
+  const searchParams = useSearchParams();
+
+  const { from, to, days, rangeLabel } = useMemo(() => {
+    const fromParam = searchParams?.get("from") ?? undefined;
+    const toParam = searchParams?.get("to") ?? undefined;
+
+    const today = new Date();
+    const defaultFrom = new Date();
+    defaultFrom.setDate(today.getDate() - 30);
+    defaultFrom.setHours(0, 0, 0, 0);
+    today.setHours(23, 59, 59, 999);
+
+    const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
+    const toDate = toParam ? new Date(toParam) : today;
+
+    fromDate.setHours(0, 0, 0, 0);
+    toDate.setHours(23, 59, 59, 999);
+
+    const diffMs = toDate.getTime() - fromDate.getTime();
+    const computedDays = diffMs >= 0 ? Math.floor(diffMs / (24 * 60 * 60 * 1000)) + 1 : 1;
+
+    const fromLabel = fromDate.toLocaleDateString("fr-FR");
+    const toLabel = toDate.toLocaleDateString("fr-FR");
+
+    let label = "Choisir une période";
+    if (fromLabel && !toLabel) {
+      label = fromLabel;
+    } else if (!fromLabel && toLabel) {
+      label = toLabel;
+    } else if (fromLabel && toLabel && fromLabel === toLabel) {
+      label = fromLabel;
+    } else if (fromLabel && toLabel) {
+      label = `${fromLabel} – ${toLabel}`;
+    }
+
+    return { from: fromDate, to: toDate, days: Math.max(1, computedDays), rangeLabel: label };
+  }, [searchParams]);
 
   const todayKey = useMemo(() => {
     const d = new Date();
@@ -48,9 +92,20 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
     [pointages, todayKey]
   );
 
-  const presentToday = useMemo(
-    () => todayPointages.filter((p) => p.isActive),
+  // On considère un employé "présent" s'il a au moins un pointage pour la journée,
+  // ce qui aligne la synthèse et les filtres avec la logique des graphiques.
+  const presentTodayIds = useMemo(
+    () => new Set(todayPointages.map((p) => p.userId)),
     [todayPointages]
+  );
+
+  const todayBreaks = useMemo(
+    () =>
+      breaks.filter((b) => {
+        const d = new Date(b.date as unknown as string);
+        return d.toDateString() === todayKey;
+      }),
+    [breaks, todayKey]
   );
 
   const onLeaveTodayIds = useMemo(() => {
@@ -73,8 +128,8 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
 
   const presenceData = useMemo(() => {
     const data = Array.from({ length: days }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - ((days - 1) - i));
+      const date = new Date(from);
+      date.setDate(from.getDate() + i);
 
       const dayStart = new Date(date);
       dayStart.setHours(0, 0, 0, 0);
@@ -103,7 +158,7 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
     });
 
     return data;
-  }, [days, pointages, team]);
+  }, [days, from, pointages, team]);
 
   const departments = useMemo(
     () =>
@@ -120,7 +175,7 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
   const filteredTeam = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     return team.filter((employee) => {
-      const isPresent = presentToday.some((p) => p.userId === employee.id);
+      const isPresent = presentTodayIds.has(employee.id);
 
       const matchesStatus =
         statusFilter === "all" ||
@@ -136,7 +191,7 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
 
       return matchesStatus && matchesSearch && matchesDepartment;
     });
-  }, [team, presentToday, searchTerm, statusFilter, departmentFilter]);
+  }, [team, presentTodayIds, searchTerm, statusFilter, departmentFilter]);
 
   const todayRows = useMemo(
     () =>
@@ -151,15 +206,172 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
 
         const lastPointage = employeeTodayPointages[0] ?? null;
 
-        return { employee, pointage: lastPointage };
+        const employeeTodayBreaks = todayBreaks.filter((b) => b.userId === employee.id);
+
+        return { employee, pointage: lastPointage, breaks: employeeTodayBreaks };
       }),
-    [filteredTeam, todayPointages]
+    [filteredTeam, todayPointages, todayBreaks]
   );
 
   const totalEmployees = team.length;
-  const presentCount = new Set(presentToday.map((p) => p.userId)).size;
+  const presentCount = presentTodayIds.size;
   const onLeaveCount = onLeaveTodayIds.size;
   const absentCount = Math.max(0, totalEmployees - presentCount - onLeaveCount);
+
+  const handleExportPdf = async () => {
+    if (todayRows.length === 0) {
+      showInfo("Aucun pointage à exporter pour aujourd'hui.");
+      return;
+    }
+
+    try {
+      setIsExportingPdf(true);
+
+      const pdfDoc = await PDFDocument.create();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      let page = pdfDoc.addPage();
+      let { height } = page.getSize();
+
+      const margin = 40;
+      let y = height - margin;
+      const lineHeight = 14;
+
+      const drawLine = (text: string, x: number, yPos: number, size = 10) => {
+        page.drawText(text, {
+          x,
+          y: yPos,
+          size,
+          font,
+        });
+      };
+
+      const ensureSpace = (neededLines = 1) => {
+        if (y - neededLines * lineHeight < margin) {
+          page = pdfDoc.addPage();
+          ({ height } = page.getSize());
+          y = height - margin;
+        }
+      };
+
+      const today = new Date();
+      const todayLabel = today.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+
+      // Titre
+      drawLine("Pointages de l'équipe", margin, y, 16);
+      y -= lineHeight * 2;
+      drawLine(`Date : ${todayLabel}`, margin, y, 11);
+      y -= lineHeight * 2;
+
+      // En-têtes de colonnes
+      ensureSpace();
+      const colX = {
+        name: margin,
+        dept: margin + 170,
+        entry: margin + 260,
+        exit: margin + 320,
+        breakStart: margin + 380,
+        breakEnd: margin + 440,
+        breakDuration: margin + 500,
+        workDuration: margin + 560,
+      } as const;
+
+      drawLine("Employé", colX.name, y, 9);
+      drawLine("Département", colX.dept, y, 9);
+      drawLine("Entrée", colX.entry, y, 9);
+      drawLine("Sortie", colX.exit, y, 9);
+      drawLine("Début pause", colX.breakStart, y, 9);
+      drawLine("Fin pause", colX.breakEnd, y, 9);
+      drawLine("Durée pauses", colX.breakDuration, y, 9);
+      drawLine("Durée", colX.workDuration, y, 9);
+      y -= lineHeight;
+
+      // Séparateur
+      ensureSpace();
+      drawLine("".padEnd(90, "-"), margin, y, 8);
+      y -= lineHeight;
+
+      for (const row of todayRows) {
+        ensureSpace();
+
+        const employee = row.employee;
+        const pointage = row.pointage;
+        const employeeBreaks = row.breaks;
+
+        const employeeName = `${employee.firstname ?? ""} ${employee.lastname ?? ""}`.trim() || "-";
+        const department = employee.department ?? "-";
+        const entryTime = pointage?.entryTime ?? "-";
+        const exitTime = pointage?.exitTime ?? "-";
+
+        let breakStart = "-";
+        let breakEnd = "-";
+        let totalBreak = "-";
+
+        if (employeeBreaks && employeeBreaks.length > 0) {
+          const startTimes = employeeBreaks
+            .map((b) => b.startTime)
+            .filter((t): t is string => Boolean(t))
+            .sort();
+          const endTimes = employeeBreaks
+            .map((b) => b.endTime)
+            .filter((t): t is string => Boolean(t))
+            .sort();
+
+          if (startTimes.length > 0) {
+            breakStart = startTimes[0];
+          }
+          if (endTimes.length > 0) {
+            breakEnd = endTimes[endTimes.length - 1];
+          }
+
+          const totalMinutes = employeeBreaks.reduce((sum, b) => sum + (b.duration ?? 0), 0);
+          if (totalMinutes > 0) {
+            totalBreak = `${totalMinutes} min`;
+          }
+        }
+
+        let workDuration = "-";
+        if (pointage && pointage.duration && pointage.duration > 0) {
+          const hours = Math.floor(pointage.duration / 60);
+          const minutes = pointage.duration % 60;
+          workDuration = `${hours}h ${minutes}m`;
+        }
+
+        drawLine(employeeName, colX.name, y, 8);
+        drawLine(department, colX.dept, y, 8);
+        drawLine(entryTime, colX.entry, y, 8);
+        drawLine(exitTime, colX.exit, y, 8);
+        drawLine(breakStart, colX.breakStart, y, 8);
+        drawLine(breakEnd, colX.breakEnd, y, 8);
+        drawLine(totalBreak, colX.breakDuration, y, 8);
+        drawLine(workDuration, colX.workDuration, y, 8);
+
+        y -= lineHeight;
+      }
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `pointages_${today.toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showSuccess("PDF généré avec succès.");
+    } catch (error) {
+      console.error("Erreur lors de la génération du PDF", error);
+      showError("Une erreur est survenue lors de la génération du PDF.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
 
   const todayColumns: ColumnDef<TodayRow>[] = [
     {
@@ -188,6 +400,56 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
       accessorKey: "exitTime",
       header: () => <span>Sortie</span>,
       cell: ({ row }) => <span>{row.original.pointage?.exitTime || "-"}</span>,
+    },
+    {
+      id: "breakStart",
+      header: () => <span>Début pause</span>,
+      cell: ({ row }) => {
+        const employeeBreaks = row.original.breaks;
+        if (!employeeBreaks || employeeBreaks.length === 0) {
+          return <span>-</span>;
+        }
+        const startTimes = employeeBreaks
+          .map((b) => b.startTime)
+          .filter((t): t is string => Boolean(t))
+          .sort();
+        const first = startTimes[0];
+        return <span>{first || "-"}</span>;
+      },
+    },
+    {
+      id: "breakEnd",
+      header: () => <span>Fin pause</span>,
+      cell: ({ row }) => {
+        const employeeBreaks = row.original.breaks;
+        if (!employeeBreaks || employeeBreaks.length === 0) {
+          return <span>-</span>;
+        }
+        const endTimes = employeeBreaks
+          .map((b) => b.endTime)
+          .filter((t): t is string => Boolean(t))
+          .sort();
+        const last = endTimes[endTimes.length - 1];
+        return <span>{last || "-"}</span>;
+      },
+    },
+    {
+      id: "breakDuration",
+      header: () => <span>Durée pauses</span>,
+      cell: ({ row }) => {
+        const employeeBreaks = row.original.breaks;
+        if (!employeeBreaks || employeeBreaks.length === 0) {
+          return <span>-</span>;
+        }
+        const totalMinutes = employeeBreaks.reduce(
+          (sum, b) => sum + (b.duration ?? 0),
+          0,
+        );
+        if (totalMinutes <= 0) {
+          return <span>-</span>;
+        }
+        return <span>{totalMinutes} min</span>;
+      },
     },
     {
       accessorKey: "duration",
@@ -261,22 +523,15 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
               Consultez les pointages, la présence et les absences de votre équipe en détail
             </p>
           </div>
-          
           <div className="grid grid-cols-2 gap-2">
-            <Select value={range} onValueChange={(value: "week" | "month") => setRange(value)}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Période" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="week">7 derniers jours</SelectItem>
-                <SelectItem value="month">30 derniers jours</SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="w-full">
+              <EmployeeReportDateRangeFilter />
+            </div>
             <Button asChild variant="outline" className="mt-1 md:mt-0 cursor-pointer">
-            <Link href="/pointages/manual">
-              Saisie manuelle
-            </Link>
-          </Button>
+              <Link href="/pointages/manual">
+                Saisie manuelle
+              </Link>
+            </Button>
           </div>
         </div>
       </div>
@@ -375,7 +630,19 @@ export default function ManagerPointagesClient({ team, pointages, absences }: Ma
                 </SelectContent>
               </Select>
             )}
-            
+          
+          </div>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              size="sm"
+              className="cursor-pointer"
+              onClick={handleExportPdf}
+              disabled={todayRows.length === 0 || isExportingPdf}
+            >
+              <Download className="mr-1.5 h-3.5 w-3.5" />
+              <span>{isExportingPdf ? "Génération..." : "Exporter en PDF"}</span>
+            </Button>
           </div>
           <DataTable columns={todayColumns} data={todayRows} />
         </CardContent>

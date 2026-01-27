@@ -21,6 +21,12 @@ export function CalendarRange(props: CalendarRangeProps = {}) {
 
   const selected = value ?? internalRange
 
+  const today = React.useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+
   const handleSelect = (next: DateRange | undefined) => {
     if (!value) {
       setInternalRange(next)
@@ -37,9 +43,12 @@ export function CalendarRange(props: CalendarRangeProps = {}) {
           selected={selected}
           onSelect={handleSelect}
           numberOfMonths={2}
-          disabled={(date) =>
-            date > new Date() || date < new Date("1900-01-01")
-          }
+          disabled={(date) => {
+            const current = new Date(date)
+            current.setHours(0, 0, 0, 0)
+            const min = new Date("1900-01-01T00:00:00")
+            return current.getTime() > today.getTime() || current.getTime() < min.getTime()
+          }}
         />
       </CardContent>
     </Card>

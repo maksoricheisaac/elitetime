@@ -74,7 +74,11 @@ export default function EmployeeDashboardClient({
 				router.refresh();
 			} catch (e) {
 				console.error(e);
-				showError("Une erreur est survenue lors du pointage d'entrée.");
+				const message =
+					e instanceof Error && e.message
+						? e.message
+						: "Une erreur est survenue lors du pointage d'entrée.";
+				showError(message);
 			}
 		});
 	};

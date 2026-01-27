@@ -153,6 +153,26 @@ export async function startEmployeePointage(userId: string) {
     throw new Error("Vous êtes en congé aujourd'hui. Le pointage est désactivé.");
   }
 
+  const existingCompletedToday = await prisma.pointage.findFirst({
+    where: {
+      userId,
+      date: {
+        gte: todayStart,
+        lte: todayEnd,
+      },
+      exitTime: {
+        not: null,
+      },
+    },
+    orderBy: {
+      date: "desc",
+    },
+  });
+
+  if (existingCompletedToday) {
+    throw new Error("Vous avez déjà effectué un pointage complet aujourd'hui.");
+  }
+
   const existingActive = await prisma.pointage.findFirst({
     where: {
       userId,

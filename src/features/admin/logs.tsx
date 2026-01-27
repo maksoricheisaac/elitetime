@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +12,7 @@ import { Activity, Search, Filter, ChevronLeft, ChevronRight, Printer } from "lu
 import type { ActivityLog, User } from "@/generated/prisma/client";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
+import { EmployeeReportDateRangeFilter } from "@/features/manager/employee-report-date-range-filter";
 
 interface ActivityLogWithUser extends ActivityLog {
   user: User | null;
@@ -18,6 +20,7 @@ interface ActivityLogWithUser extends ActivityLog {
 
 interface LogsClientProps {
   logs: ActivityLogWithUser[];
+  employees: User[];
 }
 
 const logColumns: ColumnDef<ActivityLogWithUser>[] = [
@@ -70,40 +73,51 @@ const logColumns: ColumnDef<ActivityLogWithUser>[] = [
   },
 ];
 
-export default function LogsClient({ logs }: LogsClientProps) {
+export default function LogsClient({ logs, employees }: LogsClientProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const [filterUser, setFilterUser] = useState<string>("all");
-
-  const [filterPeriod, setFilterPeriod] = useState<string>("all");
-
   const [page, setPage] = useState(1);
   const pageSize = 10;
+  const searchParams = useSearchParams();
 
-  const now = new Date();
+  const { from, to } = useMemo(() => {
+    const fromParam = searchParams?.get("from") ?? undefined;
+    const toParam = searchParams?.get("to") ?? undefined;
 
-  const periodFilteredLogs = logs.filter((log) => {
-    if (filterPeriod === "all") {
-      return true;
-    }
+    const today = new Date();
+    const defaultFrom = new Date();
+    defaultFrom.setDate(today.getDate() - 30);
+    defaultFrom.setHours(0, 0, 0, 0);
+    today.setHours(23, 59, 59, 999);
 
-    const logDate = new Date(log.timestamp);
+    const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
+    const toDate = toParam ? new Date(toParam) : today;
 
-    let fromDate: Date | null = null;
-    if (filterPeriod === "24h") {
-      fromDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    } else if (filterPeriod === "7d") {
-      fromDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    } else if (filterPeriod === "30d") {
-      fromDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    }
+    fromDate.setHours(0, 0, 0, 0);
+    toDate.setHours(23, 59, 59, 999);
 
-    if (!fromDate) {
-      return true;
-    }
+    return { from: fromDate, to: toDate };
+  }, [searchParams]);
 
-    return logDate >= fromDate && logDate <= now;
-  });
+  const periodFilteredLogs = useMemo(
+    () =>
+      logs.filter((log) => {
+        const logDate = new Date(log.timestamp);
+        return logDate >= from && logDate <= to;
+      }),
+    [logs, from, to],
+  );
+
+  const totalActiveEmployees = employees.length;
+
+  const connectedUserIds = new Set(
+    periodFilteredLogs
+      .filter((l) => l.type === "auth" && l.userId)
+      .map((l) => l.userId as string),
+  );
+
+  const nonConnectedCount = Math.max(0, totalActiveEmployees - connectedUserIds.size);
 
   const filteredLogs = periodFilteredLogs.filter((log) => {
     const user = log.user;
@@ -164,10 +178,26 @@ export default function LogsClient({ logs }: LogsClientProps) {
       {/* Statistiques */}
       <div className="grid gap-4 md:grid-cols-4">
         {[
-          { type: "auth", label: "Connexions", count: periodFilteredLogs.filter((l) => l.type === "auth").length },
-          { type: "pointage", label: "Pointages", count: periodFilteredLogs.filter((l) => l.type === "pointage").length },
-          { type: "absence", label: "Absences", count: periodFilteredLogs.filter((l) => l.type === "absence").length },
-          { type: "user", label: "Utilisateurs", count: periodFilteredLogs.filter((l) => l.type === "user").length }
+          {
+            type: "auth",
+            label: "Connexions",
+            count: periodFilteredLogs.filter((l) => l.type === "auth").length,
+          },
+          {
+            type: "pointage",
+            label: "Pointages",
+            count: periodFilteredLogs.filter((l) => l.type === "pointage").length,
+          },
+          {
+            type: "absence",
+            label: "Non connectés",
+            count: nonConnectedCount,
+          },
+          {
+            type: "user",
+            label: "Utilisateurs",
+            count: periodFilteredLogs.filter((l) => l.type === "user").length,
+          },
         ].map((stat) => (
           <Card key={stat.type}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -235,19 +265,9 @@ export default function LogsClient({ logs }: LogsClientProps) {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 w-64">
               <Label className="text-sm text-muted-foreground">Période</Label>
-              <Select value={filterPeriod} onValueChange={setFilterPeriod}>
-                <SelectTrigger>
-                  <SelectValue className="w-50"/>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Toutes</SelectItem>
-                  <SelectItem value="24h">Dernières 24h</SelectItem>
-                  <SelectItem value="7d">7 derniers jours</SelectItem>
-                  <SelectItem value="30d">30 derniers jours</SelectItem>
-                </SelectContent>
-              </Select>
+              <EmployeeReportDateRangeFilter />
             </div>
           </div>
         </CardContent>

@@ -6,7 +6,30 @@ import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { getUserPermissions } from '@/lib/security/rbac';
 import { Prisma } from '@/generated/prisma/client';
 
-export default async function AppReportsPage() {
+function resolveRange(searchParams?: { from?: string; to?: string }) {
+  const fromParam = searchParams?.from;
+  const toParam = searchParams?.to;
+
+  const today = new Date();
+  const defaultFrom = new Date();
+  defaultFrom.setDate(today.getDate() - 30);
+  defaultFrom.setHours(0, 0, 0, 0);
+  today.setHours(23, 59, 59, 999);
+
+  const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
+  const toDate = toParam ? new Date(toParam) : today;
+
+  fromDate.setHours(0, 0, 0, 0);
+  toDate.setHours(23, 59, 59, 999);
+
+  return { fromDate, toDate };
+}
+
+export default async function AppReportsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ from?: string; to?: string }>;
+}) {
   try {
     const auth = await requireNavigationAccessById('reports');
     const user = auth.user;
@@ -56,12 +79,15 @@ export default async function AppReportsPage() {
 
       const teamIds = employees.map((u) => u.id);
 
-      const since = new Date();
-      since.setDate(since.getDate() - 90);
+      const { fromDate, toDate } = resolveRange(await searchParams);
 
       const pointages = await prisma.pointage.findMany({
         where: {
           userId: { in: teamIds },
+          date: {
+            gte: fromDate,
+            lte: toDate,
+          },
         },
         include: {
           user: {
@@ -80,7 +106,8 @@ export default async function AppReportsPage() {
         where: {
           userId: { in: teamIds },
           date: {
-            gte: since,
+            gte: fromDate,
+            lte: toDate,
           },
         },
         orderBy: { date: 'desc' },
@@ -118,12 +145,15 @@ export default async function AppReportsPage() {
 
   const teamIds = employees.map((u) => u.id);
 
-  const since = new Date();
-  since.setDate(since.getDate() - 90);
+  const { fromDate, toDate } = resolveRange(await searchParams);
 
   const pointages = await prisma.pointage.findMany({
     where: {
       userId: { in: teamIds },
+      date: {
+        gte: fromDate,
+        lte: toDate,
+      },
     },
     include: {
       user: {
@@ -142,7 +172,8 @@ export default async function AppReportsPage() {
     where: {
       userId: { in: teamIds },
       date: {
-        gte: since,
+        gte: fromDate,
+        lte: toDate,
       },
     },
     orderBy: { date: 'desc' },

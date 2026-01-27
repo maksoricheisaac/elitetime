@@ -16,7 +16,7 @@ interface RetardChartProps {
   description?: string;
 }
 
-export function RetardChart({ data, title = "Retards du mois", description = "Nombre de retards et temps moyen par jour" }: RetardChartProps) {
+export function RetardChart({ data, title = "Retards du mois", description = "Nombre de retards par jour" }: RetardChartProps) {
   return (
     <Card>
       <CardHeader>
@@ -49,15 +49,9 @@ export function RetardChart({ data, title = "Retards du mois", description = "No
                     <div className="rounded-lg border bg-background p-2 shadow-sm">
                       <div className="space-y-1">
                         <div className="text-sm font-medium">{label}</div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">Retards</span>
-                            <span className="font-bold text-orange-600">{data.retards}</span>
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-[0.70rem] uppercase text-muted-foreground">Moyenne</span>
-                            <span className="font-bold text-blue-600">{data.moyenneRetard} min</span>
-                          </div>
+                        <div className="flex flex-col">
+                          <span className="text-[0.70rem] uppercase text-muted-foreground">Retards</span>
+                          <span className="font-bold text-orange-600">{data.retards}</span>
                         </div>
                       </div>
                     </div>
@@ -79,17 +73,6 @@ export function RetardChart({ data, title = "Retards du mois", description = "No
               activeDot={{
                 r: 6,
                 style: { fill: "hsl(25, 95%, 53%)" },
-              }}
-            />
-            <Line 
-              type="monotone" 
-              dataKey="moyenneRetard" 
-              stroke="hsl(221, 83%, 53%)"
-              strokeWidth={2}
-              strokeDasharray="5 5"
-              dot={{ 
-                fill: "hsl(221, 83%, 53%)",
-                r: 3,
               }}
             />
           </LineChart>

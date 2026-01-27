@@ -34,6 +34,24 @@ export async function PermissionBadge({ userId, userRole, variant = 'default' }:
   }
 
   if (permissions.length === 0) {
+    // Cas particulier : les managers peuvent avoir des droits implicites via leur rôle
+    if (userRole === 'manager') {
+      if (variant === 'compact') {
+        return (
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+            <Key className="w-3 h-3 mr-1" />
+            Rôle manager
+          </Badge>
+        );
+      }
+
+      return (
+        <Badge variant="outline" className="text-muted-foreground">
+          Permissions via rôle manager
+        </Badge>
+      );
+    }
+
     return variant === 'compact' ? null : (
       <Badge variant="outline" className="text-muted-foreground">
         Aucune permission

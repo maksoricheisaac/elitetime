@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useNotification } from "@/contexts/notification-context";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Calendar, Users, Eye } from "lucide-react";
+import { Download, Users, Eye } from "lucide-react";
+import { EmployeeReportDateRangeFilter } from "@/features/manager/employee-report-date-range-filter";
 import type { User, Pointage, Break as BreakModel } from "@/generated/prisma/client";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -26,29 +28,6 @@ interface EmployeeStats {
   absenceCount: number;
   overtimeHours: number;
   totalBreakMinutes: number;
-}
-
-type Period = "day" | "week" | "month" | "quarter";
-
-function getPeriodStart(period: Period, now: Date) {
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-
-  if (period === "day") {
-    // aujourd'hui
-  } else if (period === "week") {
-    const day = start.getDay();
-    const diff = (day + 6) % 7;
-    start.setDate(start.getDate() - diff);
-  } else if (period === "month") {
-    start.setDate(1);
-  } else {
-    const currentMonth = start.getMonth();
-    const quarterStartMonth = currentMonth - (currentMonth % 3);
-    start.setMonth(quarterStartMonth, 1);
-  }
-
-  return start;
 }
 
 function countBusinessDays(start: Date, end: Date) {
@@ -151,35 +130,60 @@ const employeeStatsColumns: ColumnDef<EmployeeStats>[] = [
 
 export default function ManagerReportsClient({ team, pointages, breaks, overtimeThreshold }: ManagerReportsClientProps) {
   const { showSuccess, showError, showInfo } = useNotification();
-  const [period, setPeriod] = useState<Period>("week");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const searchParams = useSearchParams();
 
-  const now = useMemo(() => {
-    const d = new Date();
-    d.setHours(23, 59, 59, 999);
-    return d;
-  }, []);
+  const { from, to, rangeLabel } = useMemo(() => {
+    const fromParam = searchParams?.get("from") ?? undefined;
+    const toParam = searchParams?.get("to") ?? undefined;
 
-  const periodStart = useMemo(() => getPeriodStart(period, now), [period, now]);
+    const today = new Date();
+    const defaultFrom = new Date();
+    defaultFrom.setDate(today.getDate() - 30);
+    defaultFrom.setHours(0, 0, 0, 0);
+    today.setHours(23, 59, 59, 999);
+
+    const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
+    const toDate = toParam ? new Date(toParam) : today;
+
+    fromDate.setHours(0, 0, 0, 0);
+    toDate.setHours(23, 59, 59, 999);
+
+    const fromLabel = fromDate.toLocaleDateString("fr-FR");
+    const toLabel = toDate.toLocaleDateString("fr-FR");
+
+    let label = "Choisir une période";
+    if (fromLabel && !toLabel) {
+      label = fromLabel;
+    } else if (!fromLabel && toLabel) {
+      label = toLabel;
+    } else if (fromLabel && toLabel && fromLabel === toLabel) {
+      label = fromLabel;
+    } else if (fromLabel && toLabel) {
+      label = `${fromLabel} – ${toLabel}`;
+    }
+
+    return { from: fromDate, to: toDate, rangeLabel: label };
+  }, [searchParams]);
 
   const periodFilteredPointages = useMemo(() => {
     return pointages.filter((p) => {
       const d = new Date(p.date as unknown as string);
-      return d >= periodStart && d <= now;
+      return d >= from && d <= to;
     });
-  }, [pointages, periodStart, now]);
+  }, [pointages, from, to]);
 
   const periodFilteredBreaks = useMemo(() => {
     return breaks.filter((b) => {
       const d = new Date(b.date as unknown as string);
-      return d >= periodStart && d <= now;
+      return d >= from && d <= to;
     });
-  }, [breaks, periodStart, now]);
+  }, [breaks, from, to]);
 
   const stats: EmployeeStats[] = useMemo(() => {
-    const businessDays = countBusinessDays(periodStart, now);
+    const businessDays = countBusinessDays(from, to);
     const threshold = overtimeThreshold || 40;
 
     return team.map((employee) => {
@@ -221,7 +225,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
         totalBreakMinutes,
       };
     });
-  }, [team, periodFilteredPointages, periodFilteredBreaks, periodStart, now, overtimeThreshold]);
+  }, [team, periodFilteredPointages, periodFilteredBreaks, from, to, overtimeThreshold]);
 
   const departments = useMemo(
     () =>
@@ -321,14 +325,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
       const absenceColor = rgb(0.8, 0.45, 0.2);
       const overtimeColor = rgb(0.1, 0.55, 0.32);
 
-      const periodLabel =
-        period === "day"
-          ? "Aujourd'hui"
-          : period === "week"
-          ? "Semaine en cours"
-          : period === "month"
-          ? "Mois en cours"
-          : "Trimestre en cours";
+      const periodLabel = rangeLabel || "Période sélectionnée";
 
       const departmentLabel =
         filterDepartment === "all"
@@ -701,19 +698,8 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
       </div>
     
       <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-muted-foreground" />
-          <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Période" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="day">Aujourd&apos;hui</SelectItem>
-              <SelectItem value="week">Cette semaine</SelectItem>
-              <SelectItem value="month">Ce mois</SelectItem>
-              <SelectItem value="quarter">Ce trimestre</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="w-full max-w-xs">
+          <EmployeeReportDateRangeFilter />
         </div>
     
         <Input
@@ -779,13 +765,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
         <CardHeader>
           <CardTitle>Récapitulatif par employé</CardTitle>
           <CardDescription>
-            {period === "day"
-              ? "Aujourd'hui"
-              : period === "week"
-              ? "Semaine en cours"
-              : period === "month"
-              ? "Mois en cours"
-              : "Trimestre en cours"}
+            {rangeLabel}
           </CardDescription>
         </CardHeader>
         <CardContent>

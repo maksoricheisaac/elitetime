@@ -15,7 +15,7 @@ interface DepartmentStat {
   count: number;
 }
 
-interface ManagerDashboardStats {
+interface AdminDashboardStats {
   totalUsers: number;
   employees: number;
   managers: number;
@@ -24,11 +24,11 @@ interface ManagerDashboardStats {
   departments: DepartmentStat[];
 }
 
-interface ManagerDashboardClientProps {
-  stats: ManagerDashboardStats;
+interface AdminDashboardClientProps {
+  stats: AdminDashboardStats;
 }
 
-type ManagerChartData = Awaited<ReturnType<typeof adminGetDashboardChartData>>;
+type AdminChartData = Awaited<ReturnType<typeof adminGetDashboardChartData>>;
 
 function fromISODate(value: string | null | undefined): Date | null {
   if (!value) return null;
@@ -36,7 +36,7 @@ function fromISODate(value: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-export default function ManagerDashboardClient({ stats }: ManagerDashboardClientProps) {
+export default function AdminDashboardClient({ stats }: AdminDashboardClientProps) {
   const { totalUsers, employees, managers, admins, activeToday, departments } = stats;
   const searchParams = useSearchParams();
 
@@ -70,7 +70,7 @@ export default function ManagerDashboardClient({ stats }: ManagerDashboardClient
     return { from: fromDate, to: toDate, periodLabel: label };
   }, [searchParams]);
 
-  const [chartData, setChartData] = useState<ManagerChartData | null>(null);
+  const [chartData, setChartData] = useState<AdminChartData | null>(null);
   const [isChartLoading, setIsChartLoading] = useState(false);
 
   useEffect(() => {
@@ -108,7 +108,7 @@ export default function ManagerDashboardClient({ stats }: ManagerDashboardClient
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Tableau de bord manager</h1>
+        <h1 className="text-3xl font-bold">Tableau de bord administrateur</h1>
         <p className="text-muted-foreground">Vue d&apos;ensemble de l&apos;entreprise</p>
       </div>
 
