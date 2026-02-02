@@ -25,24 +25,48 @@ async function upsertUser(
     position: string | null;
   }
 ) {
-  const existingByUsername = await prisma.user.findUnique({
-    where: { username },
+  // 1) Rechercher tous les comptes avec ce username (insensible à la casse)
+  const usersWithSameUsername = await prisma.user.findMany({
+    where: {
+      username: {
+        equals: username,
+        mode: 'insensitive',
+      },
+      status: { not: 'deleted' },
+    },
   });
 
+  // Si plusieurs comptes existent avec ce username (ex: un admin et un employé),
+  // on privilégie toujours un compte non "employee" pour éviter de se connecter
+  // sur un doublon employé.
+  const existingByUsername =
+    usersWithSameUsername.find((u) => u.role !== 'employee') ?? usersWithSameUsername[0] ?? null;
+
   let safeEmail: string | null = null;
-  let emailOwner: { id: string; username: string } | null = null;
+  let emailOwner: { id: string; username: string; role: string } | null = null;
 
   if (email) {
-    const found = await prisma.user.findUnique({
-      where: { email },
-      select: { id: true, username: true },
+    const foundCandidates = await prisma.user.findMany({
+      where: {
+        email: {
+          equals: email,
+          mode: 'insensitive',
+        },
+        status: { not: 'deleted' },
+      },
+      select: { id: true, username: true, role: true },
     });
 
-    if (!found || found.username === username) {
+    const preferredByEmail =
+      foundCandidates.find((u) => u.username.toLowerCase() === username.toLowerCase()) ??
+      foundCandidates.find((u) => u.role !== 'employee') ??
+      foundCandidates[0];
+
+    if (!preferredByEmail || preferredByEmail.username.toLowerCase() === username.toLowerCase()) {
       safeEmail = email;
-      emailOwner = found;
+      emailOwner = preferredByEmail ?? null;
     } else {
-      emailOwner = found;
+      emailOwner = preferredByEmail;
     }
   }
 
@@ -74,19 +98,9 @@ async function upsertUser(
     });
   }
 
-  return prisma.user.create({
-    data: {
-      email: safeEmail,
-      username,
-      firstname,
-      lastname,
-      role: 'employee',
-      department,
-      position,
-      avatar: null,
-      status: 'active',
-    },
-  });
+  // Aucun compte existant : ne pas créer automatiquement un nouvel employé.
+  // On laisse l'appelant décider de traiter ce cas comme des identifiants invalides.
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -261,6 +275,23 @@ export async function POST(req: Request) {
       department: ldapDepartment,
       position: ldapPosition,
     });
+
+    // Si aucun utilisateur applicatif ne correspond, on considère les identifiants comme invalides
+    // (on ne crée pas de nouvel employé automatiquement).
+    if (!appUser) {
+      await markLoginAttempt(username, false);
+      await logSecurityEvent(
+        'system',
+        'LOGIN_USER_NOT_FOUND',
+        `Aucun utilisateur applicatif correspondant pour ${username}`,
+        clientIp,
+        userAgent
+      );
+      return NextResponse.json(
+        { error: "Identifiants invalides" },
+        { status: 401 }
+      );
+    }
 
     // Créer la session
     const sessionToken = crypto.randomUUID();

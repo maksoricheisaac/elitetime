@@ -6,7 +6,7 @@ import { EmployeesUpdateNotifier } from '@/features/admin/employees-update-notif
 import { EmployeesSyncNotifier } from '@/features/admin/employees-sync-notifier';
 import { EmployeesStatsCards } from '@/features/admin/employees-stats-cards';
 import EmployeesTable from '@/features/admin/employees-table';
-import { updateEmployee, syncEmployeesFromLdap } from '@/actions/admin/employees';
+import { updateEmployee, syncEmployeesFromLdap, adminSoftDeleteEmployee } from '@/actions/admin/employees';
 
 
 export default async function AppEmployeesPage({
@@ -24,8 +24,13 @@ export default async function AppEmployeesPage({
 
   let employees: User[] = [];
 
-  // Pour l'instant : managers et admins voient tous les employés
+  // Pour l'instant : managers et admins voient tous les employés non supprimés
   employees = await prisma.user.findMany({
+    where: {
+      status: {
+        not: 'deleted',
+      },
+    },
     orderBy: { firstname: 'asc' },
   });
 
@@ -101,6 +106,7 @@ export default async function AppEmployeesPage({
           positions={positions}
           onUpdateEmployee={updateEmployee}
           onSyncFromLdap={syncEmployeesFromLdap}
+          onSoftDeleteEmployee={adminSoftDeleteEmployee}
         />
       </div>
     </>

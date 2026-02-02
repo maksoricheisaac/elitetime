@@ -6,8 +6,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, RefreshCw } from "lucide-react";
+import { Pencil, RefreshCw, Trash } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -49,6 +60,7 @@ interface EmployeesTableProps {
   positions: PositionWithDepartment[];
   onUpdateEmployee: (formData: FormData) => void;
   onSyncFromLdap: () => Promise<void> | void;
+  onSoftDeleteEmployee: (userId: string) => Promise<void> | void;
 }
 
 
@@ -176,7 +188,6 @@ function EmployeeEditDialog({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="employee">Employé</SelectItem>
-                    <SelectItem value="team_lead">Chef d&apos;équipe</SelectItem>
                     <SelectItem value="manager">Manager</SelectItem>
                     <SelectItem value="admin">Admin</SelectItem>
                   </SelectContent>
@@ -297,12 +308,14 @@ export default function EmployeesTable({
   positions,
   onUpdateEmployee,
   onSyncFromLdap,
+  onSoftDeleteEmployee,
 }: EmployeesTableProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [statusSort, setStatusSort] = useState<"none" | "active-first" | "inactive-first" | "deleted-first">(
     "none",
   );
+  const [isDeleting, startDeleteTransition] = useTransition();
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "name",
@@ -326,7 +339,14 @@ export default function EmployeesTable({
       header: () => <span>Rôle</span>,
       cell: ({ row }) => {
         const e = row.original;
-        const label = e.role === "employee" ? "Employé" : e.role === "manager" ? "Manager" : "Admin";
+        const label =
+          e.role === "employee"
+            ? "Employé"
+            : e.role === "team_lead"
+              ? "Chef d'équipe"
+              : e.role === "manager"
+                ? "Manager"
+                : "Admin";
         return (
           <Badge variant="outline" className="text-xs">
             {label}
@@ -371,7 +391,7 @@ export default function EmployeesTable({
         }
 
         return (
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2">
             <Dialog>
               <DialogTrigger asChild>
                 <Button className="cursor-pointer" type="button" variant="outline" size="sm">
@@ -394,6 +414,42 @@ export default function EmployeesTable({
                 />
               </DialogContent>
             </Dialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  className="cursor-pointer"
+                  type="button"
+                  variant="destructive"
+                  size="sm"
+                  disabled={isDeleting || e.status === "deleted"}
+                >
+                  <Trash className="h-3 w-3" />
+                  <span>Supprimer</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Supprimer cet utilisateur ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    L&apos;utilisateur sera marqué comme &quot;supprimé&quot; et ne pourra plus se connecter. Cette action
+                    est réversible uniquement via une modification manuelle de son statut.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    onClick={() => {
+                      startDeleteTransition(async () => {
+                        await onSoftDeleteEmployee(e.id);
+                      });
+                    }}
+                  >
+                    Confirmer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         );
       },

@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Bell } from "lucide-react";
 import { useRealtime } from "@/contexts/realtime-context";
 import { useAuth } from "@/contexts/auth-context";
+import { useNotification } from "@/contexts/notification-context";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -40,6 +41,8 @@ export const DashboardHeader = memo(
     const { lateAlerts, clearLateAlerts } = useRealtime();
     const { user } = useAuth();
     const [currentTime, setCurrentTime] = useState<string>("");
+    const { showInfo } = useNotification();
+    const hasMountedRef = useRef(false);
 
     const segments = pathname.split("/").filter(Boolean);
 
@@ -85,7 +88,8 @@ export const DashboardHeader = memo(
             label: getSegmentLabel(segment, index),
           }));
 
-    const canSeeAlerts = user && (user.role === "employee" || user.role === "admin");
+    const canSeeAlerts =
+      !!user && (user.role === "employee" || user.role === "admin" || user.role === "manager");
 
     useEffect(() => {
       const updateTime = () => {
@@ -102,6 +106,25 @@ export const DashboardHeader = memo(
 
       return () => window.clearInterval(intervalId);
     }, []);
+
+    useEffect(() => {
+      if (!canSeeAlerts) return;
+
+      if (!hasMountedRef.current) {
+        hasMountedRef.current = true;
+        return;
+      }
+
+      if (!lateAlerts.length) return;
+
+      const latest = lateAlerts[lateAlerts.length - 1];
+      const message =
+        user?.role === "employee"
+          ? "Vous avez un retard enregistré sur votre journée."
+          : `Nouveau retard détecté : ${latest.userName}`;
+
+      showInfo(message);
+    }, [lateAlerts.length, canSeeAlerts, showInfo, lateAlerts, user]);
 
     return (
       <header className="bg-primary text-primary-foreground/90 sticky top-0 z-50 flex h-16 w-full shrink-0 items-center gap-2 border-b border-border/60 shadow-sm backdrop-blur-sm transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -146,7 +169,9 @@ export const DashboardHeader = memo(
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="relative h-9 w-9 cursor-pointer"
+                  className={`relative h-9 w-9 cursor-pointer rounded-full border border-white/10 bg-white/5 text-white shadow-sm hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/60 focus-visible:ring-offset-0 ${
+                    lateAlerts.length > 0 ? 'ring-2 ring-destructive/70' : ''
+                  }`}
                   aria-label="Notifications de retard"
                 >
                   <Bell className="h-4 w-4 text-white" />

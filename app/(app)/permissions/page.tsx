@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Shield, Users, Settings, HelpCircle } from 'lucide-react';
 import Link from 'next/link';
 import { PermissionsManager } from '@/components/admin/permissions-manager';
+import { PermissionsSeedButton } from '@/components/admin/permissions-seed-button';
 
 async function getAdminUsers() {
   try {
@@ -51,12 +52,15 @@ export default async function PermissionsPage() {
             <Shield className="h-3 w-3" />
             Permissions
           </div>
-          <Button variant="outline" size="sm" asChild className='cursor-pointer'>
-            <Link href="/permissions-guide">
-              <HelpCircle className="h-4 w-4 mr-2" />
-              Guide
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <PermissionsSeedButton />
+            <Button variant="outline" size="sm" asChild className='cursor-pointer'>
+              <Link href="/permissions-guide">
+                <HelpCircle className="h-4 w-4 mr-2" />
+                Guide
+              </Link>
+            </Button>
+          </div>
         </div>
         <h1 className="text-3xl font-bold tracking-tight">Gestion des permissions</h1>
         <p className="text-sm text-muted-foreground">

@@ -40,7 +40,7 @@ export default function EmployeeDashboardClient({
 	initialBreaks,
 	isOnLeaveToday = false,
 }: EmployeeDashboardClientProps) {
-	const { showSuccess, showInfo, showError } = useNotification();
+	const { showSuccess, showInfo, showError, showWarning } = useNotification();
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [currentTime, setCurrentTime] = useState(new Date());
@@ -71,6 +71,40 @@ export default function EmployeeDashboardClient({
 				showSuccess(
 					"Pointage d'entrée enregistré à " + currentTime.toLocaleTimeString("fr-FR"),
 				);
+
+				// Notification détaillée retard / avance par rapport à l'heure de début prévue
+				if (workStartTime) {
+					const [startH, startM] = workStartTime.split(":").map((v) => Number(v) || 0);
+					const scheduled = new Date(currentTime);
+					scheduled.setHours(startH, startM, 0, 0);
+					const diffMs = currentTime.getTime() - scheduled.getTime();
+					const totalSeconds = Math.abs(Math.round(diffMs / 1000));
+					// On ignore les écarts inférieurs à 30s pour éviter les faux positifs
+					if (diffMs !== 0 && totalSeconds >= 30) {
+						const isLate = diffMs > 0;
+						const minutes = Math.floor(totalSeconds / 60);
+						const seconds = totalSeconds % 60;
+						const minutesPart =
+							minutes > 0
+								? `${minutes} minute${minutes > 1 ? "s" : ""}`
+								: "";
+						const secondsPart =
+							seconds > 0
+								? `${seconds} seconde${seconds > 1 ? "s" : ""}`
+								: "";
+						const separator = minutesPart && secondsPart ? " et " : "";
+						const detail = `${minutesPart}${separator}${secondsPart}` || "0 seconde";
+						const message = isLate
+							? `Vous êtes en retard de ${detail} par rapport à l'heure prévue (${workStartTime}).`
+							: `Vous êtes en avance de ${detail} sur l'heure prévue (${workStartTime}).`;
+						if (isLate) {
+							showWarning(message);
+						} else {
+							showInfo(message);
+						}
+					}
+				}
+
 				router.refresh();
 			} catch (e) {
 				console.error(e);
@@ -94,6 +128,40 @@ export default function EmployeeDashboardClient({
 				showSuccess(
 					"Pointage de sortie enregistré à " + currentTime.toLocaleTimeString("fr-FR"),
 				);
+
+				// Notification détaillée départ en avance / en retard par rapport à l'heure de fin prévue
+				if (workEndTime) {
+					const [endH, endM] = workEndTime.split(":").map((v) => Number(v) || 0);
+					const scheduled = new Date(currentTime);
+					scheduled.setHours(endH, endM, 0, 0);
+					const diffMs = currentTime.getTime() - scheduled.getTime();
+					const totalSeconds = Math.abs(Math.round(diffMs / 1000));
+					// On ignore les écarts inférieurs à 30s pour éviter les faux positifs
+					if (diffMs !== 0 && totalSeconds >= 30) {
+						const minutes = Math.floor(totalSeconds / 60);
+						const seconds = totalSeconds % 60;
+						const minutesPart =
+							minutes > 0
+								? `${minutes} minute${minutes > 1 ? "s" : ""}`
+								: "";
+						const secondsPart =
+							seconds > 0
+								? `${seconds} seconde${seconds > 1 ? "s" : ""}`
+								: "";
+						const separator = minutesPart && secondsPart ? " et " : "";
+						const detail = `${minutesPart}${separator}${secondsPart}` || "0 seconde";
+						const isAfter = diffMs > 0;
+						const message = isAfter
+							? `Vous avez dépassé l'heure de fin prévue de ${detail} (fin prévue: ${workEndTime}).`
+							: `Vous avez quitté ${detail} avant l'heure de fin prévue (${workEndTime}).`;
+						if (isAfter) {
+							showInfo(message);
+						} else {
+							showWarning(message);
+						}
+					}
+				}
+
 				router.refresh();
 			} catch (e) {
 				console.error(e);
@@ -135,39 +203,53 @@ export default function EmployeeDashboardClient({
 	};
 
 	const handleBreakEnd = () => {
-	startTransition(async () => {
-		try {
-			const updated = await endEmployeeBreak(user.id);
-			if (!updated) {
-				showError("Aucune pause active à terminer.");
-				return;
-			}
-			setBreaks((prev) => {
-				if (prev.length === 0) return prev;
+		startTransition(async () => {
+			try {
+				const updated = await endEmployeeBreak(user.id);
+				if (!updated) {
+					showError("Aucune pause active à terminer.");
+					return;
+				}
+				setBreaks((prev) => {
+					if (prev.length === 0) return prev;
 
-				const cloned = [...prev];
-				const last = cloned[cloned.length - 1];
-				cloned[cloned.length - 1] = {
-					...last,
-					endTime: updated.endTime,
-					duration: updated.duration,
-				};
-				return cloned;
-			});
-			setIsOnBreak(false);
-			if (updated.duration != null) {
-				showSuccess(`Pause terminée. Durée: ${updated.duration} minutes`);
+					const cloned = [...prev];
+					const last = cloned[cloned.length - 1];
+					cloned[cloned.length - 1] = {
+						...last,
+						endTime: updated.endTime,
+						duration: updated.duration,
+					};
+					return cloned;
+				});
+				setIsOnBreak(false);
+				if (updated.duration != null) {
+					showSuccess(`Pause terminée. Durée: ${updated.duration} minutes`);
+					const targetMinutes = 60;
+					const delta = updated.duration - targetMinutes;
+					if (delta > 0) {
+						showWarning(
+							`Votre pause a dépassé 1 heure de ${delta} minute${delta > 1 ? "s" : ""}.`,
+						);
+					} else if (delta < 0) {
+						const absDelta = Math.abs(delta);
+						showInfo(
+							`Votre pause a duré ${updated.duration} minute${
+								updated.duration > 1 ? "s" : ""
+							} (soit ${absDelta} minute${absDelta > 1 ? "s" : ""} de moins que 1 heure).`,
+						);
+					}
+				}
+			} catch (e) {
+				console.error(e);
+				showError("Une erreur est survenue lors de la fin de la pause.");
 			}
-		} catch (e) {
-			console.error(e);
-			showError("Une erreur est survenue lors de la fin de la pause.");
-		}
-	});
+		});
 	};
 
 	const { lates: weekLates, overtime: weekOvertime } = weekStats;
 	const [showAlertCard, setShowAlertCard] = useState(
-	todayPointage?.status === "late" || weekLates > 0 || weekOvertime > 0,
+		todayPointage?.status === "late" || weekLates > 0 || weekOvertime > 0,
 	);
 
 	const today = new Date();

@@ -21,6 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useNotification } from "@/contexts/notification-context";
+import { useRouter } from "next/navigation";
 
 export type PositionWithDepartment = {
   id: string;
@@ -33,8 +35,8 @@ export type PositionWithDepartment = {
 interface PositionsTableProps {
   data: PositionWithDepartment[];
   departments: { id: string; name: string }[];
-  onUpdatePosition: (formData: FormData) => void;
-  onDeletePosition: (formData: FormData) => void;
+  onUpdatePosition: (formData: FormData) => void | Promise<void>;
+  onDeletePosition: (formData: FormData) => void | Promise<void>;
 }
 
 export function PositionsTable({
@@ -43,6 +45,8 @@ export function PositionsTable({
   onUpdatePosition,
   onDeletePosition,
 }: PositionsTableProps) {
+  const { showSuccess, showError } = useNotification();
+  const router = useRouter();
   const columns: ColumnDef<PositionWithDepartment>[] = [
     {
       accessorKey: "name",
@@ -87,7 +91,21 @@ export function PositionsTable({
                     Mettez à jour les informations du poste.
                   </DialogDescription>
                 </DialogHeader>
-                <form action={onUpdatePosition} className="space-y-4">
+                <form
+                  className="space-y-4"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    const formData = new FormData(event.currentTarget);
+
+                    try {
+                      await onUpdatePosition(formData);
+                      showSuccess("Poste mis à jour avec succès");
+                      router.refresh();
+                    } catch {
+                      showError("Erreur lors de la mise à jour du poste");
+                    }
+                  }}
+                >
                   <input type="hidden" name="id" value={position.id} />
                   <div className="space-y-2">
                     <Label htmlFor={`edit-name-${position.id}`}>
@@ -153,7 +171,21 @@ export function PositionsTable({
                     poste&nbsp;?
                   </DialogDescription>
                 </DialogHeader>
-                <form action={onDeletePosition} className="flex justify-end gap-2">
+                <form
+                  className="flex justify-end gap-2"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    const formData = new FormData(event.currentTarget);
+
+                    try {
+                      await onDeletePosition(formData);
+                      showSuccess("Poste supprimé avec succès");
+                      router.refresh();
+                    } catch {
+                      showError("Erreur lors de la suppression du poste");
+                    }
+                  }}
+                >
                   <input type="hidden" name="id" value={position.id} />
                   <Button className="cursor-pointer" type="submit" variant="destructive">
                     <Trash2 className="h-3 w-3" />

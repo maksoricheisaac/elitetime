@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
-import { managerGetReportsData } from '@/actions/manager/reports';
+import { managerGetReportsData, teamLeadGetReportsData } from '@/actions/manager/reports';
 import ManagerReportsClient from '@/features/manager/reports';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { getUserPermissions } from '@/lib/security/rbac';
@@ -36,6 +36,18 @@ export default async function AppReportsPage({
 
     if (user.role === 'manager') {
       const data = await managerGetReportsData(user.id);
+      return (
+        <ManagerReportsClient
+          team={data.team}
+          pointages={data.pointages}
+          breaks={data.breaks}
+          overtimeThreshold={data.overtimeThreshold}
+        />
+      );
+    }
+
+    if (user.role === 'team_lead') {
+      const data = await teamLeadGetReportsData(user.id);
       return (
         <ManagerReportsClient
           team={data.team}

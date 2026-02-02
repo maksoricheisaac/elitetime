@@ -10,6 +10,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isLoggingOut: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -17,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<SafeUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const { showSuccess } = useNotification();
 
@@ -80,16 +82,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const logout = async () => {
-    await fetch('/api/logout', {
-      method: 'POST',
-    });
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
+
+    // Couper immédiatement l'accès côté UI
     setUser(null);
     showSuccess('Vous avez été déconnecté');
     router.push('/login');
+
+    try {
+      await fetch('/api/logout', {
+        method: 'POST',
+      });
+    } catch {
+      // on ignore les erreurs réseau ici, la session côté client est déjà fermée
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading }}>
+    <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, isLoading, isLoggingOut }}>
       {children}
     </AuthContext.Provider>
   );

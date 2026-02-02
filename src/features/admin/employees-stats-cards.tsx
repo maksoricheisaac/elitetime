@@ -36,6 +36,14 @@ export function EmployeesStatsCards({
     {} as Record<string, number>
   );
 
+  const ROLE_LABELS: Record<string, string> = {
+    employee: "Employé",
+    manager: "Manager",
+    team_lead: "Chef d’équipe",
+    admin: "Administrateur",
+  };
+
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       {/* Total */}
@@ -75,14 +83,16 @@ export function EmployeesStatsCards({
           <Shield className="h-4 w-4 text-muted-foreground" />
         </CardHeader>
         <CardContent className="space-y-1">
-          {Object.entries(byRole).map(([role, count]) => (
-            <div key={role} className="flex items-center justify-between">
-              <Badge variant="outline" className="text-xs capitalize">
-                {role === "employee" ? "Employé" : role === "manager" ? "Manager" : "Admin"}
-              </Badge>
-              <span className="text-sm font-medium">{count}</span>
-            </div>
-          ))}
+          {Object.entries(byRole)
+            .filter(([role]) => role !== "team_lead")
+            .map(([role, count]) => (
+              <div key={role} className="flex items-center justify-between">
+                <Badge variant="outline" className="text-xs">
+                  {ROLE_LABELS[role]}
+                </Badge>
+                <span className="text-sm font-medium">{count}</span>
+              </div>
+            ))}
         </CardContent>
       </Card>
 

@@ -2,20 +2,10 @@ import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { DepartmentsTable, type DepartmentWithEmployeeCount } from '@/features/admin/departments-table';
 import { DepartmentsStatsCards } from '@/features/admin/departments-stats-cards';
 import { DepartmentsSearchForm } from '@/features/admin/departments-search-form';
-import { CreateDepartmentForm } from '@/features/admin/create-department-form';
+import { DepartmentsCreateDialog } from '@/features/admin/departments-create-dialog';
 import {
   createDepartment,
   updateDepartment,
@@ -107,23 +97,7 @@ export default async function AppDepartmentsPage({
             <div className="w-full md:w-64">
               <DepartmentsSearchForm initialQuery={(await searchParams)?.q || ''} />
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button type="button" className="cursor-pointer">
-                  <Plus className="h-4 w-4" />
-                  <span>Nouveau département</span>
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Nouveau département</DialogTitle>
-                  <DialogDescription>
-                    Créez un nouveau département disponible pour votre équipe.
-                  </DialogDescription>
-                </DialogHeader>
-                <CreateDepartmentForm action={createDepartment} />
-              </DialogContent>
-            </Dialog>
+            <DepartmentsCreateDialog action={createDepartment} />
           </div>
         </CardHeader>
         <CardContent>

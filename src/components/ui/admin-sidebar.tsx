@@ -1,6 +1,6 @@
 'use client';
 
-import { memo, useState, useEffect, useCallback, useMemo } from 'react';
+import { memo, useEffect, useCallback, useMemo } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -90,17 +90,6 @@ export const AdminSidebar = memo(() => {
     return active;
   }, [currentMenu, pathname]);
 
-  // État de chargement pour éviter le clignotement
-  const [isLoading, setIsLoading] = useState(true);
-  
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 100);
-
-    return () => clearTimeout(timer);
-  }, []);
-
   // Exposer une fonction globale pour recharger les permissions (utilisé par les composants admin)
   useEffect(() => {
     (window as unknown as { refetchPermissions?: () => void | Promise<void> }).refetchPermissions = refetchPermissions;
@@ -109,61 +98,35 @@ export const AdminSidebar = memo(() => {
     };
   }, [refetchPermissions]);
 
-  if (isLoading || permissionsLoading) {
-    return (
-      <Sidebar collapsible="icon" className="bg-primary border-primary">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg">
-                <div className="flex aspect-square size-20 items-center justify-center rounded-lg group-data-[collapsible=icon]:size-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-2 border-cyan-300 border-t-cyan-600"></div>
-                </div>
-                <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                  <span className="truncate font-semibold">Chargement...</span>
-                </div>
-              </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarHeader>
-      <SidebarContent>
-        <div className="flex items-center justify-center h-32">
-          <div className="text-sm text-primary-foreground/80">Chargement de la navigation...</div>
-        </div>
-      </SidebarContent>
-      <SidebarRail />
-    </Sidebar>
-    );
-  }
-
   return (
     <Sidebar collapsible="icon" className="bg-primary border-primary">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link prefetch={false} href={homePath}>
-                <div className="flex aspect-square size-20 items-center justify-center rounded-lg group-data-[collapsible=icon]:size-8">
-                  <Image src={logo} alt="logo" width={200} height={200} />
+              <Link prefetch={false} href={homePath} className="flex flex-col items-center h-24">
+                <div className="flex items-center justify-center rounded-lg -mt-5 group-data-[collapsible=icon]:mt-0">
+                  <Image src={logo} alt="logo" width={150} height={150} />
                 </div>
-                <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                  <span className="truncate font-semibold">Elite Network Time</span>
+
+                <div className="grid text-center text-sm leading-tight group-data-[collapsible=icon]:hidden">
+                  <span className="truncate font-semibold">Elite Time</span>
                   <span className="truncate text-xs">
                     {user?.role === 'admin' ? 'Admin Panel' : 
                      user?.role === 'manager' ? 'Espace Manager' : 'Espace Employé'}
                   </span>
-                </div>
+                </div> 
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent >
         <SidebarGroup>
           
           <SidebarGroupContent>
-            <SidebarMenu className="mt-5 gap-3">
+            <SidebarMenu className="mt-0 gap-3">
               {currentMenu.length > 0 ? (
                 currentMenu.map((mi) => {
                   const Icon = mi.icon;
@@ -208,7 +171,7 @@ export const AdminSidebar = memo(() => {
                 })
               ) : (
                 <div className="px-4 py-2 text-sm text-muted-foreground">
-                  Aucun menu disponible pour ce rôle
+                  {permissionsLoading ? 'Chargement de la navigation...' : 'Aucun menu disponible pour ce rôle'}
                 </div>
               )}
             </SidebarMenu>

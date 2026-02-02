@@ -19,7 +19,7 @@ export default async function AppDashboardPage() {
     redirect('/login');
   }
 
-  if (user.role === "employee") {
+  if (user.role === "employee" || user.role === "team_lead") {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart);
@@ -68,5 +68,5 @@ export default async function AppDashboardPage() {
     return <AdminDashboardClient stats={stats} />;
   }
 
-  redirect('/dashboard');
+  redirect('/login');
 }

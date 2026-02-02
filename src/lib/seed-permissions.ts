@@ -55,13 +55,3 @@ export async function seedPermissions() {
   return { created: PERMISSIONS.length };
 }
 
-// Fonction pour exécuter le seeding
-seedPermissions()
-  .then(() => {
-    console.log("Seeding des permissions terminé.");
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error("Erreur lors du seeding des permissions:", error);
-    process.exit(1);
-  });

@@ -1,14 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { User, Mail, Briefcase, Building, Check } from 'lucide-react';
+import { User, Mail, Briefcase, Building } from 'lucide-react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { SESSION_COOKIE_NAME, sanitizeUser } from '@/lib/session';
-import { updateEmployeeProfileAction } from '@/actions/employee/profile';
 import ProfileUpdateNotifier from '@/features/employee/profile-update-notifier';
 import { requireNavigationAccessByPath } from '@/lib/navigation-guard';
 
@@ -42,57 +37,26 @@ export default async function AppEmployeeProfile() {
       <ProfileUpdateNotifier />
       <div>
         <h1 className="text-3xl font-bold">Mon profil</h1>
-        <p className="text-muted-foreground">Gérez vos informations personnelles</p>
+        <p className="text-muted-foreground">Consultez vos informations personnelles (lecture seule)</p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Avatar</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-center gap-4">
-            <Avatar className="h-32 w-32 text-6xl">
-              <AvatarFallback className="bg-primary text-white">
-                {user.avatar}
-              </AvatarFallback>
-            </Avatar>
-            <p className="text-center text-sm text-muted-foreground">
-              Votre avatar est généré automatiquement
-            </p>
-          </CardContent>
-        </Card>
-
+      <div className="grid gap-6 md:grid-cols-2">
         <Card className="md:col-span-2">
           <CardHeader>
             <CardTitle>Informations personnelles</CardTitle>
-            <CardDescription>Modifiez vos informations</CardDescription>
+            <CardDescription>Vos informations sont gérées par l&apos;administrateur</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <form action={updateEmployeeProfileAction} className="space-y-4">
-              <input type="hidden" name="userId" value={user.id} />
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstname">Prénom</Label>
-                  <Input
-                    id="firstname"
-                    name="firstname"
-                    defaultValue={user.firstname ?? ''}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastname">Nom</Label>
-                  <Input
-                    id="lastname"
-                    name="lastname"
-                    defaultValue={user.lastname ?? ''}
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Prénom</p>
+                <p className="text-sm font-medium">{user.firstname || 'Non renseigné'}</p>
               </div>
-              <Button type="submit" className="inline-flex items-center gap-2 cursor-pointer">
-                <Check className="h-4 w-4" />
-                <span>Enregistrer les modifications</span>
-              </Button>
-            </form>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground">Nom</p>
+                <p className="text-sm font-medium">{user.lastname || 'Non renseigné'}</p>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

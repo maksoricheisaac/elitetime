@@ -36,16 +36,28 @@ async function upsertFromLdap(
     status: "active" | "inactive";
   },
 ) {
-  const existingByUsername = await prisma.user.findUnique({
-    where: { username },
+  const existingByUsername = await prisma.user.findFirst({
+    where: {
+      username: {
+        equals: username,
+        mode: "insensitive",
+      },
+      status: { not: "deleted" },
+    },
   });
 
   let safeEmail: string | null = null;
   let emailOwner: { id: string; username: string } | null = null;
 
   if (email) {
-    const found = await prisma.user.findUnique({
-      where: { email },
+    const found = await prisma.user.findFirst({
+      where: {
+        email: {
+          equals: email,
+          mode: "insensitive",
+        },
+        status: { not: "deleted" },
+      },
       select: { id: true, username: true },
     });
 

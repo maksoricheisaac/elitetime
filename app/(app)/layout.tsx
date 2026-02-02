@@ -1,6 +1,7 @@
 import { AdminSidebar } from "@/components/ui/admin-sidebar";
 import { DashboardHeader } from "@/components/ui/dashboard-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { LogoutOverlay } from "@/components/customs/logout-overlay";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,6 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="relative z-10 flex flex-1 flex-col gap-2 p-2 pt-0 sm:gap-4 sm:p-4">
             {children}
           </div>
+          <LogoutOverlay />
         </div>
       </SidebarInset>
     </SidebarProvider>

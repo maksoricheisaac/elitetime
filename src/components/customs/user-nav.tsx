@@ -43,15 +43,15 @@ export const UserNav = () => {
                 </div>
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {user && user.role !== "employee" && (
+              {user && (
                 <DropdownMenuItem asChild className="cursor-pointer">
-                  <Link href={user.role === "manager" ? "/manager/profile" : "/profile"}>
+                  <Link href="/profile">
                     <UserIcon className="mr-2 h-4 w-4" />
                     Profil
                   </Link>
                 </DropdownMenuItem>
               )}
-              {user && user.role !== "employee" && <DropdownMenuSeparator />}
+              {user && <DropdownMenuSeparator />}
               <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive cursor-pointer">
                 <LogOut className="mr-2 h-4 w-4" />
                 Déconnexion

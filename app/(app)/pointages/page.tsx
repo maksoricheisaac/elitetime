@@ -29,7 +29,7 @@ function resolveRange(searchParams?: { from?: string; to?: string }) {
 export default async function AppPointagesPage({
   searchParams,
 }: {
-  searchParams?: { from?: string; to?: string };
+  searchParams?: Promise<{ from?: string; to?: string }>;
 }) {
   const auth = await requireNavigationAccessById("pointages");
   const user = auth.user;
@@ -66,7 +66,7 @@ export default async function AppPointagesPage({
 
     const teamIds = employees.map((u) => u.id);
 
-    const { fromDate, toDate } = resolveRange(searchParams);
+    const { fromDate, toDate } = resolveRange(await searchParams);
 
     const pointages = await prisma.pointage.findMany({
       where: {
@@ -107,14 +107,14 @@ export default async function AppPointagesPage({
     );
   }
 
-  // Managers & admins : même périmètre (tous les employés actifs)
+  // Managers & admins : même périmètre (tous les collaborateurs actifs qui pointent)
   if (!["manager", "admin"].includes(user.role)) {
     redirect("/dashboard");
   }
 
   const employees = await prisma.user.findMany({
     where: {
-      role: "employee",
+      role: { in: ["employee", "team_lead"] },
       status: "active",
     },
     orderBy: { firstname: "asc" },

@@ -14,22 +14,28 @@ import {
   departmentUpdateFormSchema,
   type DepartmentUpdateFormValues,
 } from "@/schemas/admin/forms/departments";
+import { useNotification } from "@/contexts/notification-context";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 
 export type DepartmentWithEmployeeCount = Department & { employeesCount: number };
 
 interface DepartmentsTableProps {
   data: DepartmentWithEmployeeCount[];
-  onUpdateDepartment: (formData: FormData) => void;
-  onDeleteDepartment: (formData: FormData) => void;
+  onUpdateDepartment: (formData: FormData) => void | Promise<void>;
+  onDeleteDepartment: (formData: FormData) => void | Promise<void>;
 }
 
 
 interface DepartmentEditDialogProps {
   department: DepartmentWithEmployeeCount;
-  onUpdateDepartment: (formData: FormData) => void;
+  onUpdateDepartment: (formData: FormData) => void | Promise<void>;
 }
 
 function DepartmentEditDialog({ department, onUpdateDepartment }: DepartmentEditDialogProps) {
+  const [isPending, startTransition] = useTransition();
+  const { showSuccess, showError } = useNotification();
+  const router = useRouter();
   const form = useForm<DepartmentUpdateFormValues>({
     resolver: zodResolver(departmentUpdateFormSchema),
     defaultValues: {
@@ -40,13 +46,22 @@ function DepartmentEditDialog({ department, onUpdateDepartment }: DepartmentEdit
     mode: "onSubmit",
   });
 
-  const onSubmit = async (values: DepartmentUpdateFormValues) => {
-    const formData = new FormData();
-    formData.append("id", values.id);
-    formData.append("name", values.name);
-    formData.append("description", values.description ?? "");
+  const onSubmit = (values: DepartmentUpdateFormValues) => {
+    startTransition(() => {
+      const formData = new FormData();
+      formData.append("id", values.id);
+      formData.append("name", values.name);
+      formData.append("description", values.description ?? "");
 
-    await onUpdateDepartment(formData);
+      void Promise.resolve(onUpdateDepartment(formData))
+        .then(() => {
+          showSuccess("Département mis à jour avec succès");
+          router.refresh();
+        })
+        .catch(() => {
+          showError("Erreur lors de la mise à jour du département");
+        });
+    });
   };
 
   return (
@@ -92,7 +107,11 @@ function DepartmentEditDialog({ department, onUpdateDepartment }: DepartmentEdit
           />
         </div>
         <div className="flex justify-end gap-2">
-          <Button className="cursor-pointer" type="submit" disabled={form.formState.isSubmitting}>
+          <Button
+            className="cursor-pointer"
+            type="submit"
+            disabled={form.formState.isSubmitting || isPending}
+          >
             Enregistrer
           </Button>
         </div>
@@ -102,6 +121,8 @@ function DepartmentEditDialog({ department, onUpdateDepartment }: DepartmentEdit
 }
 
 export function DepartmentsTable({ data, onUpdateDepartment, onDeleteDepartment }: DepartmentsTableProps) {
+  const { showSuccess, showError } = useNotification();
+  const router = useRouter();
   const columns: ColumnDef<DepartmentWithEmployeeCount>[] = [
     {
       accessorKey: "name",
@@ -182,7 +203,21 @@ export function DepartmentsTable({ data, onUpdateDepartment, onDeleteDepartment 
                     département&nbsp;?
                   </DialogDescription>
                 </DialogHeader>
-                <form action={onDeleteDepartment} className="flex justify-end gap-2">
+                <form
+                  className="flex justify-end gap-2"
+                  onSubmit={async (event) => {
+                    event.preventDefault();
+                    const formData = new FormData(event.currentTarget);
+
+                    try {
+                      await onDeleteDepartment(formData);
+                      showSuccess("Département supprimé avec succès");
+                      router.refresh();
+                    } catch {
+                      showError("Erreur lors de la suppression du département");
+                    }
+                  }}
+                >
                   <input type="hidden" name="id" value={department.id} />
                   <Button className="cursor-pointer" type="submit" variant="destructive">
                     <Trash2 className="h-3 w-3" />

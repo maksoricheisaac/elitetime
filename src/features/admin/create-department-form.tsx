@@ -1,19 +1,23 @@
 "use client";
 
-import type { FormEvent } from "react";
+import { useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createDepartmentFormSchema, type CreateDepartmentFormValues } from "@/schemas/admin/forms/departments";
+import { useNotification } from "@/contexts/notification-context";
 
 
 interface CreateDepartmentFormProps {
   action: (formData: FormData) => void | Promise<void>;
+  onSuccess?: () => void;
 }
 
-export function CreateDepartmentForm({ action }: CreateDepartmentFormProps) {
+export function CreateDepartmentForm({ action, onSuccess }: CreateDepartmentFormProps) {
+  const [isPending, startTransition] = useTransition();
+  const { showSuccess, showError } = useNotification();
   const form = useForm<CreateDepartmentFormValues>({
     resolver: zodResolver(createDepartmentFormSchema),
     defaultValues: {
@@ -23,17 +27,30 @@ export function CreateDepartmentForm({ action }: CreateDepartmentFormProps) {
     mode: "onSubmit",
   });
 
-  const handleValidatedSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formElement = event.currentTarget as HTMLFormElement;
-    void form.handleSubmit(() => {
-      formElement.submit();
-    })(event);
+  const onSubmit = (values: CreateDepartmentFormValues) => {
+    startTransition(() => {
+      const formData = new FormData();
+      formData.append("name", values.name);
+      if (values.description) {
+        formData.append("description", values.description);
+      }
+
+      void Promise.resolve(action(formData))
+        .then(() => {
+          showSuccess("Département créé avec succès");
+          if (onSuccess) {
+            onSuccess();
+          }
+        })
+        .catch(() => {
+          showError("Erreur lors de la création du département");
+        });
+    });
   };
 
   return (
     <Form {...form}>
-      <form action={action} className="space-y-4" noValidate onSubmit={handleValidatedSubmit}>
+      <form className="space-y-4" noValidate onSubmit={form.handleSubmit(onSubmit)}>
         <div className="space-y-2">
           <FormField
             control={form.control}
@@ -73,7 +90,11 @@ export function CreateDepartmentForm({ action }: CreateDepartmentFormProps) {
           />
         </div>
         <div className="flex justify-end gap-2">
-          <Button className="cursor-pointer" type="submit" disabled={form.formState.isSubmitting}>
+          <Button
+            className="cursor-pointer"
+            type="submit"
+            disabled={form.formState.isSubmitting || isPending}
+          >
             Créer
           </Button>
         </div>

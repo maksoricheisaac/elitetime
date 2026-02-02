@@ -65,3 +65,62 @@ export async function managerGetReportsData(managerId: string): Promise<ManagerR
 
   return { team, pointages, breaks, overtimeThreshold };
 }
+
+export async function teamLeadGetReportsData(teamLeadId: string): Promise<ManagerReportsData> {
+  const teamLead = await prisma.user.findUnique({ where: { id: teamLeadId } });
+
+  // Si le chef d'équipe n'existe pas ou n'a pas de département défini,
+  // on ne retourne aucune donnée, comme pour le manager.
+  if (!teamLead || !teamLead.department) {
+    const settings = await prisma.systemSettings.findFirst();
+    const overtimeThreshold = settings?.overtimeThreshold ?? 40;
+    return { team: [], pointages: [], breaks: [], overtimeThreshold };
+  }
+
+  // Un chef d'équipe voit les employés de son propre département,
+  // afin que son périmètre soit bien limité à son département.
+  const team = await prisma.user.findMany({
+    where: {
+      department: teamLead.department,
+      role: "employee",
+      status: "active",
+    },
+    orderBy: { firstname: "asc" },
+  });
+
+  if (team.length === 0) {
+    const settings = await prisma.systemSettings.findFirst();
+    const overtimeThreshold = settings?.overtimeThreshold ?? 40;
+    return { team, pointages: [], breaks: [], overtimeThreshold };
+  }
+
+  const teamIds = team.map((u) => u.id);
+
+  const since = new Date();
+  since.setDate(since.getDate() - 90);
+
+  const pointages = await prisma.pointage.findMany({
+    where: {
+      userId: { in: teamIds },
+      date: {
+        gte: since,
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  const breaks = await prisma.break.findMany({
+    where: {
+      userId: { in: teamIds },
+      date: {
+        gte: since,
+      },
+    },
+    orderBy: { date: "desc" },
+  });
+
+  const settings = await prisma.systemSettings.findFirst();
+  const overtimeThreshold = settings?.overtimeThreshold ?? 40;
+
+  return { team, pointages, breaks, overtimeThreshold };
+}

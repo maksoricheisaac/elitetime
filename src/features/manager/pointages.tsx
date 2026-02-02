@@ -353,7 +353,9 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       }
 
       const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: "application/pdf" });
+      const blob = new Blob([pdfBytes as unknown as BlobPart], {
+        type: "application/pdf",
+      });
       const url = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
@@ -476,33 +478,70 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
         const employee = row.original.employee;
         const isOnLeave = onLeaveTodayIds.has(employee.id);
 
-        let statusLabel = "Non pointé";
-        let statusVariant: "default" | "secondary" | "outline" | "destructive" = "secondary";
-        let statusClassName = "";
-
+        // Cas sans pointage
         if (!pointage && isOnLeave) {
-          statusLabel = "En congé";
-          statusVariant = "secondary";
-        } else if (pointage) {
-          if (pointage.isActive) {
-            statusLabel = "En activité";
-            statusVariant = "default";
-            statusClassName = "bg-success text-white";
-          } else if (pointage.status === "late") {
-            statusLabel = "En retard";
-            statusVariant = "destructive";
-          } else if (pointage.status === "incomplete") {
-            statusLabel = "Incomplet";
-            statusVariant = "secondary";
-          } else {
-            statusLabel = "Terminé";
-            statusVariant = "outline";
-          }
+          return (
+            <Badge
+              variant="outline"
+              className="border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-800/60 dark:bg-sky-900/40 dark:text-sky-200"
+            >
+              En congé
+            </Badge>
+          );
         }
 
+        if (!pointage) {
+          return (
+            <Badge
+              variant="outline"
+              className="border-muted bg-muted/40 text-muted-foreground dark:border-slate-700 dark:bg-slate-900/40"
+            >
+              Non pointé
+            </Badge>
+          );
+        }
+
+        // Cas avec pointage
+        if (pointage.isActive) {
+          return (
+            <Badge
+              variant="outline"
+              className="border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/40 dark:text-emerald-200"
+            >
+              En activité
+            </Badge>
+          );
+        }
+
+        if (pointage.status === "late") {
+          return (
+            <Badge
+              variant="outline"
+              className="border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-900/40 dark:text-amber-200"
+            >
+              En retard
+            </Badge>
+          );
+        }
+
+        if (pointage.status === "incomplete") {
+          return (
+            <Badge
+              variant="outline"
+              className="border-sky-300 bg-sky-50 text-sky-800 dark:border-sky-800/60 dark:bg-sky-900/40 dark:text-sky-200"
+            >
+              Incomplet
+            </Badge>
+          );
+        }
+
+        // Cas par défaut : pointage terminé et normal
         return (
-          <Badge variant={statusVariant} className={statusClassName}>
-            {statusLabel}
+          <Badge
+            variant="outline"
+            className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-900/30 dark:text-emerald-200"
+          >
+            Terminé
           </Badge>
         );
       },

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { requireAdmin, logSecurityEvent } from "@/lib/security/rbac";
+import { requireAdmin, logSecurityEvent, grantDefaultManagerPermissions } from "@/lib/security/rbac";
 import { syncEmployeesFromLdapCore } from "@/lib/ldap-sync-employees";
 
 export async function updateEmployee(formData: FormData) {
@@ -31,9 +31,13 @@ export async function updateEmployee(formData: FormData) {
       email,
       department,
       position,
-      role: role as "employee" | "manager" | "admin",
+      role: role as "employee" | "team_lead" | "manager" | "admin",
     },
   });
+
+  if (role === "manager") {
+    await grantDefaultManagerPermissions(id);
+  }
 
   revalidatePath("/employees");
   redirect("/employees?updated=1");
@@ -69,4 +73,51 @@ export async function syncEmployeesFromLdap() {
   } else {
     redirect("/employees?synced_error=1");
   }
+}
+
+// Marquer un employé comme supprimé (suppression logique)
+export async function adminSoftDeleteEmployee(userId: string) {
+  const auth = await requireAdmin();
+
+  const trimmedId = userId.trim();
+  if (!trimmedId) {
+    return;
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { id: trimmedId },
+    select: { id: true, username: true, email: true, status: true },
+  });
+
+  if (!existing) {
+    return;
+  }
+
+  if (existing.id === auth.user.id) {
+    // Ne pas permettre à un admin de se supprimer lui-même
+    return;
+  }
+
+  const archivedUsername = `${existing.username}__deleted__${existing.id}`;
+  const archivedEmail = existing.email
+    ? `${existing.email}__deleted__${existing.id}`.slice(0, 190)
+    : null;
+
+  await prisma.user.update({
+    where: { id: trimmedId },
+    data: {
+      status: "deleted",
+      username: archivedUsername,
+      email: archivedEmail,
+    },
+  });
+
+  await logSecurityEvent(
+    auth.user.id,
+    "USER_SOFT_DELETED",
+    `Suppression logique de l'utilisateur ${existing.username} (id=${existing.id})`,
+  );
+
+  revalidatePath("/employees");
+  redirect("/employees?deleted=1");
 }

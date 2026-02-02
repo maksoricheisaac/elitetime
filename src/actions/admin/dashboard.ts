@@ -5,7 +5,11 @@ import type { UserRole } from "@/generated/prisma/enums";
 
 export async function getAdminDashboardStats() {
   const [users, todayActivePointages, recentActivity] = await Promise.all([
-    prisma.user.findMany(),
+    prisma.user.findMany({
+      where: {
+        status: { not: 'deleted' },
+      },
+    }),
     prisma.pointage.count({
       where: {
         isActive: true,
@@ -18,7 +22,10 @@ export async function getAdminDashboardStats() {
     }),
   ]);
 
-  const totalUsers = users.length;
+  // Ne compter que les utilisateurs actifs (hors supprimés)
+  const activeUsers = users.filter((u) => u.status === "active");
+  const totalUsers = activeUsers.length;
+
   const countByRole: Record<UserRole, number> = {
     admin: 0,
     manager: 0,
@@ -29,7 +36,7 @@ export async function getAdminDashboardStats() {
   const departments = new Map<string, number>();
   let unassignedCount = 0;
 
-  for (const user of users) {
+  for (const user of activeUsers) {
     countByRole[user.role] = (countByRole[user.role] || 0) + 1;
     if (user.department) {
       departments.set(user.department, (departments.get(user.department) || 0) + 1);

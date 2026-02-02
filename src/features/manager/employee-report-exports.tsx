@@ -89,7 +89,7 @@ export function EmployeeReportExports({
     a.click();
     URL.revokeObjectURL(url);
 
-    showSuccess("📊 Rapport CSV exporté avec succès");
+    showSuccess("Rapport CSV exporté avec succès");
   };
 
   const handleExportPdf = async () => {
@@ -324,7 +324,7 @@ export function EmployeeReportExports({
       a.click();
       URL.revokeObjectURL(url);
 
-      showSuccess("📄 Rapport PDF téléchargé avec succès");
+      showSuccess(" Rapport PDF téléchargé avec succès");
     } catch (error) {
       console.error(error);
       showError("Une erreur est survenue lors de la génération du PDF.");

@@ -2,27 +2,9 @@ import { redirect } from 'next/navigation';
 import prisma from '@/lib/prisma';
 import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Plus, Check } from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { PositionsFilter } from '@/components/customs/positions-filter';
 import { PositionsTable } from '@/features/admin/positions-table';
+import { PositionsCreateDialog } from '@/features/admin/positions-create-dialog';
 import type { PositionWithDepartment } from '@/features/admin/positions-table';
 import {
   createPositionFromForm,
@@ -85,62 +67,10 @@ export default async function AppPositionsPage({
               Gérez les postes disponibles dans chaque département.
             </CardDescription>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button type="button" className="cursor-pointer">
-                <Plus className="h-4 w-4" />
-                <span>Nouveau poste</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Nouveau poste</DialogTitle>
-                <DialogDescription>
-                  Créez un nouveau poste pour un département.
-                </DialogDescription>
-              </DialogHeader>
-              <form action={createPositionFromForm} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="new-position-name">Nom du poste</Label>
-                  <Input
-                    id="new-position-name"
-                    name="name"
-                    placeholder="Ex: Développeur, Manager, etc."
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-position-department">Département</Label>
-                  <Select name="departmentId" required>
-                    <SelectTrigger id="new-position-department">
-                      <SelectValue placeholder="Sélectionner un département" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {departments.map((dept) => (
-                        <SelectItem key={dept.id} value={dept.id}>
-                          {dept.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="new-position-description">Description</Label>
-                  <Input
-                    id="new-position-description"
-                    name="description"
-                    placeholder="Description du poste (optionnel)"
-                  />
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button type="submit" className="cursor-pointer">
-                    <Check className="h-4 w-4" />
-                    <span>Créer</span>
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <PositionsCreateDialog
+            departments={departments.map((d) => ({ id: d.id, name: d.name }))}
+            action={createPositionFromForm}
+          />
         </CardHeader>
         <CardContent className="space-y-3">
           {departments.length > 1 && (

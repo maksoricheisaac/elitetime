@@ -11,7 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useNotification } from "@/contexts/notification-context";
-import { approveAbsence, rejectAbsence, createManagedLeave } from "@/actions/manager/absences";
+import {
+  approveAbsence,
+  rejectAbsence,
+  createManagedLeave,
+  updateManagedLeave,
+  deleteManagedLeave,
+} from "@/actions/manager/absences";
 import { DatePicker } from "@/components/ui/date-picker";
 
 interface LeaveManagementClientProps {
@@ -32,6 +38,11 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
   const [newLeaveStart, setNewLeaveStart] = useState<Date | undefined>();
   const [newLeaveEnd, setNewLeaveEnd] = useState<Date | undefined>();
   const [newLeaveReason, setNewLeaveReason] = useState<string>("");
+
+  const [editingLeaveId, setEditingLeaveId] = useState<string | null>(null);
+  const [editLeaveStart, setEditLeaveStart] = useState<Date | undefined>();
+  const [editLeaveEnd, setEditLeaveEnd] = useState<Date | undefined>();
+  const [editLeaveReason, setEditLeaveReason] = useState<string>("");
 
   const departments = useMemo(
     () =>
@@ -62,6 +73,11 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
       return matchesSearch && matchesStatus && matchesDepartment;
     });
   }, [absences, searchTerm, statusFilter, departmentFilter]);
+
+  const editingLeave = useMemo(
+    () => filteredAbsences.find((a) => a.id === editingLeaveId) ?? null,
+    [filteredAbsences, editingLeaveId],
+  );
 
   const columns: ColumnDef<(typeof filteredAbsences)[number]>[] = [
     {
@@ -125,10 +141,6 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
         const a = row.original;
         const isPendingStatus = a.status === "pending";
 
-        if (!isPendingStatus) {
-          return <span className="text-xs text-muted-foreground">Aucune action</span>;
-        }
-
         const handleApprove = () => {
           startTransition(async () => {
             try {
@@ -154,13 +166,68 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
           });
         };
 
+        const handleEdit = () => {
+          setEditingLeaveId(a.id);
+          setEditLeaveStart(new Date(a.startDate as unknown as string));
+          setEditLeaveEnd(new Date(a.endDate as unknown as string));
+          setEditLeaveReason(a.reason);
+        };
+
+        const handleDelete = () => {
+          const confirmed = window.confirm("Confirmer la suppression de ce congé ?");
+          if (!confirmed) return;
+
+          startTransition(async () => {
+            try {
+              await deleteManagedLeave(a.id);
+              showSuccess("Congé supprimé");
+            } catch (error) {
+              console.error(error);
+              showError("Impossible de supprimer ce congé pour le moment.");
+            }
+          });
+        };
+
         return (
           <div className="flex justify-end gap-2">
-            <Button className="cursor-pointer" variant="outline" size="sm" onClick={handleReject} disabled={isPending}>
-              Rejeter
+            {isPendingStatus && (
+              <>
+                <Button
+                  className="cursor-pointer"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleReject}
+                  disabled={isPending}
+                >
+                  Rejeter
+                </Button>
+                <Button
+                  className="cursor-pointer"
+                  size="sm"
+                  onClick={handleApprove}
+                  disabled={isPending}
+                >
+                  Approuver
+                </Button>
+              </>
+            )}
+            <Button
+              className="cursor-pointer"
+              variant="outline"
+              size="sm"
+              onClick={handleEdit}
+              disabled={isPending}
+            >
+              Modifier
             </Button>
-            <Button className="cursor-pointer" size="sm" onClick={handleApprove} disabled={isPending}>
-              Approuver
+            <Button
+              className="cursor-pointer"
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={isPending}
+            >
+              Supprimer
             </Button>
           </div>
         );
@@ -321,6 +388,100 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
           </div>
 
           <DataTable columns={columns} data={filteredAbsences} />
+
+          {editingLeaveId && editingLeave && (
+            <div className="mt-6 border-t pt-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">Modifier le congé sélectionné</h3>
+                  <p className="text-xs text-muted-foreground">
+                    {editingLeave.user.firstname} {editingLeave.user.lastname} - du{' '}
+                    {new Date(editingLeave.startDate as unknown as string).toLocaleDateString('fr-FR')} au{' '}
+                    {new Date(editingLeave.endDate as unknown as string).toLocaleDateString('fr-FR')}
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="cursor-pointer"
+                  onClick={() => {
+                    setEditingLeaveId(null);
+                    setEditLeaveStart(undefined);
+                    setEditLeaveEnd(undefined);
+                    setEditLeaveReason("");
+                  }}
+                >
+                  Annuler
+                </Button>
+              </div>
+              <div className="grid gap-4 md:grid-cols-4">
+                <div className="space-y-2">
+                  <Label>Début</Label>
+                  <DatePicker
+                    value={editLeaveStart}
+                    onChange={setEditLeaveStart}
+                    placeholder="Date de début"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Fin</Label>
+                  <DatePicker
+                    value={editLeaveEnd}
+                    onChange={setEditLeaveEnd}
+                    placeholder="Date de fin"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Raison</Label>
+                  <Input
+                    placeholder="Mettre à jour la raison"
+                    value={editLeaveReason}
+                    onChange={(e) => setEditLeaveReason(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  className="cursor-pointer"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (!editingLeaveId || !editLeaveStart || !editLeaveEnd || !editLeaveReason.trim()) {
+                      showError("Veuillez renseigner toutes les informations du congé.");
+                      return;
+                    }
+
+                    if (editLeaveEnd < editLeaveStart) {
+                      showError("Période de congé invalide.");
+                      return;
+                    }
+
+                    startTransition(async () => {
+                      try {
+                        await updateManagedLeave({
+                          id: editingLeaveId,
+                          startDate: editLeaveStart,
+                          endDate: editLeaveEnd,
+                          reason: editLeaveReason.trim(),
+                        });
+                        showSuccess("Congé mis à jour.");
+                        setEditingLeaveId(null);
+                        setEditLeaveStart(undefined);
+                        setEditLeaveEnd(undefined);
+                        setEditLeaveReason("");
+                      } catch (error) {
+                        console.error(error);
+                        showError("Impossible de mettre à jour ce congé pour le moment.");
+                      }
+                    });
+                  }}
+                >
+                  Enregistrer les modifications
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

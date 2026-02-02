@@ -248,6 +248,41 @@ export async function markLoginAttempt(identifier: string, success: boolean): Pr
   });
 }
 
+// Accorder les permissions par défaut à un manager
+export async function grantDefaultManagerPermissions(userId: string): Promise<void> {
+  const managerPermissionNames = [
+    'view_all_pointages',
+    'view_reports',
+    'view_employees',
+    'view_departments',
+    'view_positions',
+    'view_all_absences',
+    'view_team_absences',
+    'validate_absences',
+  ];
+
+  const permissions = await prisma.permission.findMany({
+    where: {
+      name: {
+        in: managerPermissionNames,
+      },
+    },
+  });
+
+  if (permissions.length === 0) {
+    return;
+  }
+
+  await prisma.userPermission.createMany({
+    data: permissions.map((permission) => ({
+      userId,
+      permissionId: permission.id,
+      grantedBy: 'system_manager_defaults',
+    })),
+    skipDuplicates: true,
+  });
+}
+
 // Vérifier si un utilisateur a une permission spécifique
 export async function hasUserPermission(userId: string, permissionName: string): Promise<boolean> {
   const userPermission = await prisma.userPermission.findFirst({

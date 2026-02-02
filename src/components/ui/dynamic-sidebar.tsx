@@ -103,8 +103,8 @@ export const DynamicSidebar = memo(() => {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link prefetch={false} href={homePath}>
-                <div className="flex aspect-square size-20 items-center justify-center rounded-lg group-data-[collapsible=icon]:size-8">
-                  <Image src={logo} alt="logo" width={200} height={200} />
+                <div className="flex aspect-square size-44 items-center justify-center rounded-lg group-data-[collapsible=icon]:size-8">
+                  <Image src={logo} alt="logo" width={300} height={300} />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                   <span className="truncate font-semibold">Elite Network Time</span>

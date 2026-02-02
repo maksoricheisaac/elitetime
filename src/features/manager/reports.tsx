@@ -291,7 +291,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
     a.click();
     URL.revokeObjectURL(url);
 
-    showSuccess("📊 Rapport exporté avec succès");
+    showSuccess("Rapport exporté avec succès");
   };
 
   const handleExportPdf = async () => {
@@ -302,378 +302,266 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
 
     setIsExportingPdf(true);
 
-    try {
-      const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+  const periodLabel = rangeLabel || "Période sélectionnée";
+  const departmentLabel =
+    filterDepartment === "all"
+      ? "Tous les départements"
+      : `Département : ${filterDepartment}`;
+  const employeesLabel = `${filteredStats.length} employé(s)`;
+  const summaryLabel = `Total heures : ${totalTeamHours}h  |  Moyenne : ${avgHours}h  |  Heures sup : ${totalOvertime}h`;
 
-      const pdfDoc = await PDFDocument.create();
-      const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+try {
+  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
 
-      const margin = 40;
-      const headerHeight = 70;
-      const footerHeight = 40;
-      const rowHeight = 20;
+  const pdfDoc = await PDFDocument.create();
+  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-      const primaryColor = rgb(0.11, 0.42, 0.76);
-      const textColor = rgb(0.15, 0.15, 0.2);
-      const mutedTextColor = rgb(0.4, 0.4, 0.45);
-      const tableHeaderBg = rgb(0.95, 0.96, 0.98);
-      const tableRowAltBg = rgb(0.985, 0.99, 1);
-      const contextBg = rgb(0.98, 0.98, 0.985);
+  /* ==============================
+     CONSTANTES GLOBALES
+  ============================== */
+  const PAGE_WIDTH = 595;
+  const PAGE_HEIGHT = 842;
+  const MARGIN = 40;
+  const ROW_HEIGHT = 20;
+  const FOOTER_HEIGHT = 40;
 
-      const lateColor = rgb(0.8, 0.2, 0.2);
-      const absenceColor = rgb(0.8, 0.45, 0.2);
-      const overtimeColor = rgb(0.1, 0.55, 0.32);
+  const COLORS = {
+    headerMain: rgb(0.11, 0.42, 0.76),
+    headerSecondary: rgb(0.06, 0.32, 0.58),
+    textDark: rgb(0.15, 0.15, 0.2),
+    textLight: rgb(1, 1, 1),
+    muted: rgb(0.4, 0.45, 0.6),
+    tableHeaderBg: rgb(0.06, 0.32, 0.58),
+    tableBorder: rgb(0.75, 0.75, 0.8),
+    altRow: rgb(0.96, 0.98, 1),
+    late: rgb(0.8, 0.2, 0.2),
+    absence: rgb(0.85, 0.45, 0.2),
+    overtime: rgb(0.1, 0.55, 0.32),
+    footer: rgb(0.06, 0.32, 0.58),
+  };
 
-      const periodLabel = rangeLabel || "Période sélectionnée";
+  let pageNumber = 0;
+  const generatedAt = new Date().toLocaleString();
 
-      const departmentLabel =
-        filterDepartment === "all"
-          ? "Tous les départements"
-          : `Département : ${filterDepartment}`;
+  /* ==============================
+     HEADER COMMUN
+  ============================== */
+  const drawHeader = (page, title: string, subtitle?: string) => {
+    page.drawRectangle({
+      x: 0,
+      y: PAGE_HEIGHT - 120,
+      width: PAGE_WIDTH,
+      height: 120,
+      color: COLORS.headerMain,
+    });
 
-      const employeesLabel = `${filteredStats.length} employé(s) dans ce rapport`;
+    page.drawRectangle({
+      x: PAGE_WIDTH * 0.45,
+      y: PAGE_HEIGHT - 120,
+      width: PAGE_WIDTH * 0.55,
+      height: 80,
+      color: COLORS.headerSecondary,
+    });
 
-      const generatedAt = new Date().toLocaleString();
+    page.drawText(title, {
+      x: MARGIN,
+      y: PAGE_HEIGHT - 70,
+      size: 20,
+      font: fontBold,
+      color: COLORS.textLight,
+    });
 
-      let pageNumber = 0;
-
-      const createPage = (mode: "table" | "anomalies" = "table") => {
-        const page = pdfDoc.addPage();
-        const { width, height } = page.getSize();
-        pageNumber += 1;
-
-        // Bandeau d'en-tête principal
-        page.drawRectangle({
-          x: 0,
-          y: height - headerHeight,
-          width,
-          height: headerHeight,
-          color: primaryColor,
-        });
-
-        page.drawText("EliteTime – Rapport de l'équipe", {
-          x: margin,
-          y: height - headerHeight + 32,
-          size: 20,
-          font: fontBold,
-          color: rgb(1, 1, 1),
-        });
-
-        page.drawText(`Période : ${periodLabel}`, {
-          x: margin,
-          y: height - headerHeight + 12,
-          size: 11,
-          font: fontRegular,
-          color: rgb(0.93, 0.95, 1),
-        });
-
-        const summaryText = `Total heures : ${totalTeamHours}h  |  Moyenne : ${avgHours}h  |  Heures sup : ${totalOvertime}h`;
-        page.drawText(summaryText, {
-          x: margin,
-          y: height - headerHeight - 10,
-          size: 10,
-          font: fontRegular,
-          color: mutedTextColor,
-        });
-
-        // Bloc de contexte (filtres, effectif)
-        const tableWidth = width - margin * 2;
-        const contextTopY = height - headerHeight - 28;
-        const contextHeight = 32;
-
-        page.drawRectangle({
-          x: margin,
-          y: contextTopY - contextHeight,
-          width: tableWidth,
-          height: contextHeight,
-          color: contextBg,
-        });
-
-        page.drawText(departmentLabel, {
-          x: margin + 8,
-          y: contextTopY - 12,
-          size: 9,
-          font: fontRegular,
-          color: mutedTextColor,
-        });
-
-        page.drawText(employeesLabel, {
-          x: margin + 8,
-          y: contextTopY - 24,
-          size: 9,
-          font: fontRegular,
-          color: mutedTextColor,
-        });
-
-        // Pied de page (date de génération + pagination)
-        page.drawText(`Généré le ${generatedAt}`, {
-          x: margin,
-          y: margin / 2,
-          size: 9,
-          font: fontRegular,
-          color: mutedTextColor,
-        });
-
-        const pageLabel = `Page ${pageNumber}`;
-        const pageLabelWidth = fontRegular.widthOfTextAtSize(pageLabel, 9);
-        page.drawText(pageLabel, {
-          x: width - margin - pageLabelWidth,
-          y: margin / 2,
-          size: 9,
-          font: fontRegular,
-          color: mutedTextColor,
-        });
-
-        // Début de la zone de contenu sous le bloc de contexte
-        const tableTopY = contextTopY - contextHeight - 6;
-
-        let colNameX = 0;
-        let colDeptX = 0;
-        let colHoursX = 0;
-        let colLateX = 0;
-        let colAbsX = 0;
-        let colOvertimeX = 0;
-
-        if (mode === "table") {
-          page.drawRectangle({
-            x: margin,
-            y: tableTopY - rowHeight + 4,
-            width: tableWidth,
-            height: rowHeight,
-            color: tableHeaderBg,
-          });
-
-          const colNameWidth = tableWidth * 0.3;
-          const colDeptWidth = tableWidth * 0.2;
-          const colHoursWidth = tableWidth * 0.1;
-          const colLateWidth = tableWidth * 0.1;
-          const colAbsWidth = tableWidth * 0.15;
-
-          colNameX = margin + 10;
-          colDeptX = colNameX + colNameWidth;
-          colHoursX = colDeptX + colDeptWidth;
-          colLateX = colHoursX + colHoursWidth;
-          colAbsX = colLateX + colLateWidth;
-          colOvertimeX = colAbsX + colAbsWidth;
-
-          page.drawText("Employé", {
-            x: colNameX,
-            y: tableTopY,
-            size: 10,
-            font: fontBold,
-            color: textColor,
-          });
-          page.drawText("Département", {
-            x: colDeptX,
-            y: tableTopY,
-            size: 10,
-            font: fontBold,
-            color: textColor,
-          });
-          page.drawText("Heures", {
-            x: colHoursX,
-            y: tableTopY,
-            size: 10,
-            font: fontBold,
-            color: textColor,
-          });
-          page.drawText("Retards", {
-            x: colLateX,
-            y: tableTopY,
-            size: 10,
-            font: fontBold,
-            color: textColor,
-          });
-          page.drawText("Absences", {
-            x: colAbsX,
-            y: tableTopY,
-            size: 10,
-            font: fontBold,
-            color: textColor,
-          });
-          page.drawText("Heures sup", {
-            x: colOvertimeX,
-            y: tableTopY,
-            size: 10,
-            font: fontBold,
-            color: textColor,
-          });
-        }
-
-        return {
-          page,
-          y: mode === "table" ? tableTopY - rowHeight : tableTopY,
-          colNameX,
-          colDeptX,
-          colHoursX,
-          colLateX,
-          colAbsX,
-          colOvertimeX,
-          tableWidth,
-        };
-      };
-
-      let {
-        page,
-        y,
-        colNameX,
-        colDeptX,
-        colHoursX,
-        colLateX,
-        colAbsX,
-        colOvertimeX,
-        tableWidth,
-      } = createPage();
-
-      filteredStats.forEach((s, index) => {
-        if (y < margin + footerHeight + rowHeight) {
-          ({
-            page,
-            y,
-            colNameX,
-            colDeptX,
-            colHoursX,
-            colLateX,
-            colAbsX,
-            colOvertimeX,
-            tableWidth,
-          } = createPage());
-        }
-
-        const isAltRow = index % 2 === 1;
-
-        if (isAltRow) {
-          page.drawRectangle({
-            x: margin,
-            y: y - rowHeight + 4,
-            width: tableWidth,
-            height: rowHeight,
-            color: tableRowAltBg,
-          });
-        }
-
-        page.drawText(`${s.employee.firstname} ${s.employee.lastname}`, {
-          x: colNameX,
-          y,
-          size: 10,
-          font: fontRegular,
-          color: textColor,
-        });
-
-        page.drawText(s.employee.department || "-", {
-          x: colDeptX,
-          y,
-          size: 10,
-          font: fontRegular,
-          color: textColor,
-        });
-
-        page.drawText(`${s.totalHours}h`, {
-          x: colHoursX,
-          y,
-          size: 10,
-          font: fontRegular,
-          color: textColor,
-        });
-
-        page.drawText(String(s.lateCount), {
-          x: colLateX,
-          y,
-          size: 10,
-          font: fontRegular,
-          color: s.lateCount > 0 ? lateColor : textColor,
-        });
-
-        page.drawText(String(s.absenceCount), {
-          x: colAbsX,
-          y,
-          size: 10,
-          font: fontRegular,
-          color: s.absenceCount > 0 ? absenceColor : textColor,
-        });
-
-        page.drawText(`${s.overtimeHours}h`, {
-          x: colOvertimeX,
-          y,
-          size: 10,
-          font: fontRegular,
-          color: s.overtimeHours > 0 ? overtimeColor : textColor,
-        });
-
-        y -= rowHeight;
+    if (subtitle) {
+      page.drawText(subtitle, {
+        x: MARGIN,
+        y: PAGE_HEIGHT - 92,
+        size: 11,
+        font: fontRegular,
+        color: rgb(0.9, 0.9, 1),
       });
+    }
+  };
 
-      // Section r		sum		e des anomalies & alertes
-      const anomalies = filteredStats.filter(
-        (s) => s.lateCount > 0 || s.absenceCount > 0 || s.overtimeHours > 0
-      );
+  /* ==============================
+     FOOTER COMMUN
+  ============================== */
+  const drawFooter = (page) => {
+    page.drawRectangle({
+      x: 0,
+      y: 0,
+      width: PAGE_WIDTH,
+      height: 28,
+      color: COLORS.footer,
+    });
 
-      if (anomalies.length > 0) {
-        let anomaliesPage = page;
-        let anomaliesY = y - rowHeight;
+    page.drawText(`Généré le ${generatedAt}`, {
+      x: MARGIN,
+      y: 10,
+      size: 9,
+      font: fontRegular,
+      color: COLORS.textLight,
+    });
 
-        if (anomaliesY < margin + footerHeight + rowHeight * 4) {
-          const newPage = createPage("anomalies");
-          anomaliesPage = newPage.page;
-          anomaliesY = newPage.y - rowHeight;
-        }
+    const label = `Page ${pageNumber}`;
+    const w = fontRegular.widthOfTextAtSize(label, 9);
 
-        anomaliesPage.drawText("Anomalies & alertes", {
-          x: margin,
-          y: anomaliesY,
-          size: 12,
-          font: fontBold,
-          color: textColor,
-        });
-        anomaliesY -= rowHeight;
+    page.drawText(label, {
+      x: PAGE_WIDTH - MARGIN - w,
+      y: 10,
+      size: 9,
+      font: fontRegular,
+      color: COLORS.textLight,
+    });
+  };
 
-        anomalies.forEach((s) => {
-          if (anomaliesY < margin + footerHeight + rowHeight) {
-            const newPage = createPage("anomalies");
-            anomaliesPage = newPage.page;
-            anomaliesY = newPage.y - rowHeight;
-          }
+  /* ======================================================
+     PAGES  TABLEAU D48TAILL48 PAR EMPLOY c9
+  ====================================================== */
 
-          const parts: string[] = [];
-          if (s.lateCount > 0) parts.push(`${s.lateCount} retard(s)`);
-          if (s.absenceCount > 0) parts.push(`${s.absenceCount} absence(s)`);
-          if (s.overtimeHours > 0) parts.push(`${s.overtimeHours}h sup`);
+  const createEmployeePage = () => {
+    const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+    pageNumber++;
 
-          const line = `${s.employee.firstname} ${s.employee.lastname} – ${parts.join(
-            " · "
-          )}`;
+    drawHeader(
+      page,
+      "Rapport équipe - Détail par employé",
+      `Période : ${periodLabel} | ${departmentLabel}`,
+    );
+    drawFooter(page);
 
-          anomaliesPage.drawText(line, {
-            x: margin,
-            y: anomaliesY,
-            size: 10,
-            font: fontRegular,
-            color: textColor,
-          });
+    const tableTop = PAGE_HEIGHT - 150;
+    const tableWidth = PAGE_WIDTH - MARGIN * 2;
 
-          anomaliesY -= rowHeight;
-        });
-      }
+    const contextTop = tableTop + 20;
 
-      const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
-      const url = URL.createObjectURL(blob);
+    page.drawText(employeesLabel, {
+      x: MARGIN,
+      y: contextTop,
+      size: 9,
+      font: fontRegular,
+      color: COLORS.muted,
+    });
 
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "rapport-equipe.pdf";
-      a.click();
+    page.drawText(summaryLabel, {
+      x: MARGIN,
+      y: contextTop - 12,
+      size: 9,
+      font: fontRegular,
+      color: COLORS.muted,
+    });
 
-      URL.revokeObjectURL(url);
+    const columns = [
+      { label: "Employé", width: tableWidth * 0.25 },
+      { label: "Département", width: tableWidth * 0.18 },
+      { label: "Heures", width: tableWidth * 0.1 },
+      { label: "Pause", width: tableWidth * 0.1 },
+      { label: "Retards", width: tableWidth * 0.1 },
+      { label: "Absences", width: tableWidth * 0.12 },
+      { label: "Heures sup", width: tableWidth * 0.15 },
+    ];
 
-      showSuccess("📄 Rapport PDF téléchargé avec succès");
-    } catch (error) {
-      console.error(error);
+    let x = MARGIN;
+
+    page.drawRectangle({
+      x: MARGIN,
+      y: tableTop - ROW_HEIGHT,
+      width: tableWidth,
+      height: ROW_HEIGHT,
+      color: COLORS.tableHeaderBg,
+    });
+
+    columns.forEach((c) => {
+      page.drawText(c.label, {
+        x: x + 6,
+        y: tableTop - 14,
+        size: 10,
+        font: fontBold,
+        color: COLORS.textLight,
+      });
+      x += c.width;
+    });
+
+    return {
+      page,
+      y: tableTop - ROW_HEIGHT,
+      columns,
+    };
+  };
+
+  let { page, y, columns } = createEmployeePage();
+
+  filteredStats.forEach((s, index) => {
+    if (y < FOOTER_HEIGHT + ROW_HEIGHT) {
+      ({ page, y, columns } = createEmployeePage());
+    }
+
+    let x = MARGIN;
+
+    if (index % 2 === 1) {
+      page.drawRectangle({
+        x: MARGIN,
+        y: y - ROW_HEIGHT,
+        width: PAGE_WIDTH - MARGIN * 2,
+        height: ROW_HEIGHT,
+        color: COLORS.altRow,
+      });
+    }
+
+    const values = [
+      `${s.employee.firstname} ${s.employee.lastname}`,
+      s.employee.department || "-",
+      `${s.totalHours}h`,
+      `${Math.round(s.totalBreakMinutes / 60)}h`,
+      String(s.lateCount),
+      String(s.absenceCount),
+      `${s.overtimeHours}h`,
+    ];
+
+    values.forEach((v, i) => {
+      page.drawText(v, {
+        x: x + 6,
+        y: y - 14,
+        size: 10,
+        font: fontRegular,
+        color:
+          i === 4 && s.lateCount > 0
+            ? COLORS.late
+            : i === 5 && s.absenceCount > 0
+            ? COLORS.absence
+            : i === 6 && s.overtimeHours > 0
+            ? COLORS.overtime
+            : COLORS.textDark,
+      });
+      x += columns[i].width;
+    });
+
+    y -= ROW_HEIGHT;
+  });
+
+  /* ==============================
+     EXPORT
+  ============================== */
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "feuille-temps-elitetime.pdf";
+  a.click();
+
+  URL.revokeObjectURL(url);
+  showSuccess("Rapport PDF téléchargé avec succès");
+} catch (error) {
+  console.error(error);
       showError("Une erreur est survenue lors de la génération du PDF.");
     } finally {
       setIsExportingPdf(false);
     }
+
+
+    
   };
 
   return (
