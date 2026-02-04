@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { requireManagerOrAdmin } from "@/lib/security/rbac";
+import { requirePermission } from "@/lib/security/rbac";
 import { AbsenceStatus, AbsenceType } from "@/generated/prisma/enums";
 import { createActivityLog } from "@/actions/admin/logs";
 
 export async function approveAbsence(absenceId: string) {
-  const auth = await requireManagerOrAdmin();
+  const auth = await requirePermission("validate_absences")();
 
   const absence = await prisma.absence.update({
     where: { id: absenceId },
@@ -35,7 +35,7 @@ export async function approveAbsence(absenceId: string) {
 }
 
 export async function rejectAbsence(absenceId: string, comment?: string) {
-  const auth = await requireManagerOrAdmin();
+  const auth = await requirePermission("validate_absences")();
 
   const absence = await prisma.absence.update({
     where: { id: absenceId },
@@ -71,7 +71,7 @@ export async function createManagedLeave(params: {
   endDate: Date;
   reason: string;
 }) {
-  const auth = await requireManagerOrAdmin();
+  const auth = await requirePermission("validate_absences")();
   const { userId, startDate, endDate, reason } = params;
 
   const absence = await prisma.absence.create({
@@ -111,7 +111,7 @@ export async function updateManagedLeave(params: {
   endDate: Date;
   reason: string;
 }) {
-  const auth = await requireManagerOrAdmin();
+  const auth = await requirePermission("validate_absences")();
   const { id, startDate, endDate, reason } = params;
 
   const absence = await prisma.absence.update({
@@ -144,7 +144,7 @@ export async function updateManagedLeave(params: {
 }
 
 export async function deleteManagedLeave(absenceId: string) {
-  const auth = await requireManagerOrAdmin();
+  const auth = await requirePermission("validate_absences")();
 
   const absence = await prisma.absence.delete({
     where: { id: absenceId },

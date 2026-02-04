@@ -99,7 +99,7 @@ export function EmployeeReportDateRangeFilter() {
   }, [range]);
 
   return (
-    <div className="">
+    <div suppressHydrationWarning className="">
       <Popover>
         <PopoverTrigger asChild>
           <Button

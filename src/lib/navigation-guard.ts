@@ -122,14 +122,31 @@ function canAccess(
 ) {
   const effectiveAllowedRoles = pageRules?.allowedRoles ?? item.allowedRoles;
 
-  if (effectiveAllowedRoles && !effectiveAllowedRoles.includes(auth.user.role)) {
-    return false;
+  // Fusionner les permissions requises définies dans la base (Page)
+  // et celles définies dans le registre de navigation.
+  const combinedRequired = [
+    ...(pageRules?.requiredPermissions ?? []),
+    ...(item.requiredPermissions ?? []),
+  ];
+
+  // Supprimer les doublons éventuels
+  const required = Array.from(new Set(combinedRequired));
+
+  // 1) Si des permissions sont définies, elles priment :
+  //    - l'utilisateur doit en avoir au moins une pour accéder
+  //    - dans ce cas, on ne bloque PAS sur allowedRoles, pour permettre
+  //      à un employé ou un team_lead ayant reçu une permission explicite
+  //      d'accéder au module même si les rôles autorisés sont restreints.
+  if (required.length > 0) {
+    const hasRequiredPermission = required.some((permission) => permissionSet.has(permission));
+    return hasRequiredPermission;
   }
 
-  const required = pageRules?.requiredPermissions ?? item.requiredPermissions ?? [];
-  if (required.length === 0) {
-    return true;
+  // 2) S'il n'y a pas de permissions requises, on tombe en mode "rôle uniquement".
+  if (effectiveAllowedRoles) {
+    return effectiveAllowedRoles.includes(auth.user.role);
   }
 
-  return required.some((permission) => permissionSet.has(permission));
+  // 3) Aucun rôle ni permission spécifique : accès autorisé par défaut.
+  return true;
 }

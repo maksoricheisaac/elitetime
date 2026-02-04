@@ -190,7 +190,7 @@ export async function validateUserAccess(userId: string, requester: AuthContext)
 
 // Logger de sécurité pour les actions sensibles
 export async function logSecurityEvent(
-  userId: string,
+  userId: string | null,
   action: string,
   details: string,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -199,9 +199,11 @@ export async function logSecurityEvent(
   _userAgent?: string
 ): Promise<void> {
   try {
+    const resolvedUserId = userId && userId !== "system" ? userId : null;
+
     await prisma.activityLog.create({
       data: {
-        userId,
+        userId: resolvedUserId,
         action: `SECURITY: ${action}`,
         details,
         timestamp: new Date(),
@@ -246,6 +248,19 @@ export async function markLoginAttempt(identifier: string, success: boolean): Pr
       type: "auth",
     },
   });
+}
+
+// Réinitialiser les permissions d'un utilisateur en fonction de son rôle
+export async function resetPermissionsToRoleDefaults(userId: string, role: UserRole): Promise<void> {
+  // Supprimer toutes les permissions explicites actuelles
+  await prisma.userPermission.deleteMany({
+    where: { userId },
+  });
+
+  // Pour l'instant, seuls les managers ont des permissions par défaut explicites.
+  if (role === "manager") {
+    await grantDefaultManagerPermissions(userId);
+  }
 }
 
 // Accorder les permissions par défaut à un manager

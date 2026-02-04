@@ -88,8 +88,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Couper immédiatement l'accès côté UI
     setUser(null);
     showSuccess('Vous avez été déconnecté');
-    router.push('/login');
-
+    
     try {
       await fetch('/api/logout', {
         method: 'POST',
@@ -98,6 +97,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // on ignore les erreurs réseau ici, la session côté client est déjà fermée
     } finally {
       setIsLoggingOut(false);
+
+      // Forcer une redirection / rafraîchissement complet vers la page de login
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login';
+      } else {
+        router.replace('/login');
+      }
     }
   };
 

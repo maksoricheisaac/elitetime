@@ -15,6 +15,16 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Search, Shield, User } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useNotification } from '@/contexts/notification-context';
 
 interface Permission {
@@ -51,6 +61,7 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<Set<string>>(new Set());
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const { showSuccess, showError } = useNotification();
   const categories = Array.from(new Set(permissions.map(p => p.category))).sort();
 
@@ -152,6 +163,41 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
     } catch (error) {
       console.error('Error updating permissions:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erreur lors de la mise à jour des permissions';
+      showError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetToRoleDefaults = async () => {
+    if (!selectedUser) return;
+
+    setIsLoading(true);
+    try {
+      const res = await fetch(
+        `/api/admin/users/${selectedUser.id}/permissions/reset`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        const message = data.error || "Erreur lors de la réinitialisation des permissions";
+        throw new Error(message);
+      }
+
+      showSuccess('Permissions réinitialisées selon le rôle');
+
+      // Recharger pour refléter le nouvel état des permissions
+      window.location.reload();
+    } catch (error) {
+      console.error('Error resetting permissions:', error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : 'Erreur lors de la réinitialisation des permissions';
       showError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -276,6 +322,41 @@ export function PermissionsManager({ users, permissions }: PermissionsManagerPro
                   {selectedPermissionIds.size} sélectionnée(s)
                 </div>
                 <div className="flex items-center gap-2">
+                  <AlertDialog open={isResetDialogOpen} onOpenChange={setIsResetDialogOpen}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      onClick={() => setIsResetDialogOpen(true)}
+                      disabled={isLoading || selectedUser.role === 'admin'}
+                      className="cursor-pointer"
+                    >
+                      Réinitialiser selon le rôle
+                    </Button>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Réinitialiser les permissions ?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Cette action va supprimer toutes les permissions explicites de cet utilisateur
+                          et les réinitialiser selon son rôle. Cette opération est utile pour corriger
+                          une configuration de permissions incohérente.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Annuler</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setIsResetDialogOpen(false);
+                            void handleResetToRoleDefaults();
+                          }}
+                        >
+                          Confirmer la réinitialisation
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                   <Button
                     variant="outline"
                     size="sm"

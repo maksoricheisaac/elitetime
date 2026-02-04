@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useNotification } from "@/contexts/notification-context";
+import { Textarea } from "@/components/ui/textarea";
 
 interface PositionsCreateDialogProps {
   departments: { id: string; name: string }[];
@@ -75,8 +76,8 @@ export function PositionsCreateDialog({ departments, action }: PositionsCreateDi
           <div className="space-y-2">
             <Label htmlFor="new-position-department">Département</Label>
             <Select name="departmentId" required>
-              <SelectTrigger id="new-position-department">
-                <SelectValue placeholder="Sélectionner un département" />
+              <SelectTrigger id="new-position-department" className="w-full">
+                <SelectValue placeholder="Sélectionner un département"/>
               </SelectTrigger>
               <SelectContent>
                 {departments.map((dept) => (
@@ -89,7 +90,7 @@ export function PositionsCreateDialog({ departments, action }: PositionsCreateDi
           </div>
           <div className="space-y-2">
             <Label htmlFor="new-position-description">Description</Label>
-            <Input
+            <Textarea
               id="new-position-description"
               name="description"
               placeholder="Description du poste (optionnel)"

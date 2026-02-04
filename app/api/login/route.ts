@@ -98,9 +98,19 @@ async function upsertUser(
     });
   }
 
-  // Aucun compte existant : ne pas créer automatiquement un nouvel employé.
-  // On laisse l'appelant décider de traiter ce cas comme des identifiants invalides.
-  return null;
+  // Aucun compte existant : créer automatiquement un nouvel employé.
+  return prisma.user.create({
+    data: {
+      username,
+      email: safeEmail ?? email,
+      firstname,
+      lastname,
+      department,
+      position,
+      role: 'employee',
+      status: 'active',
+    },
+  });
 }
 
 export async function POST(req: Request) {
@@ -155,10 +165,6 @@ export async function POST(req: Request) {
     // Connexion LDAP sécurisée avec timeout
     const client = new Client({
       url: LDAP_URL,
-      tlsOptions: { 
-        rejectUnauthorized: process.env.NODE_ENV === 'production', // Sécurisé en production
-        minVersion: 'TLSv1.2',
-      },
       timeout: 10000,
       connectTimeout: 5000,
     });
@@ -196,21 +202,22 @@ export async function POST(req: Request) {
     }
 
     const user = searchEntries[0];
+    console.log('User : ', user)
     const userDN = user.dn;
 
     // Vérification du mot de passe avec client séparé
     const userClient = new Client({
       url: LDAP_URL,
-      tlsOptions: { 
-        rejectUnauthorized: process.env.NODE_ENV === 'production',
-        minVersion: 'TLSv1.2',
-      },
       timeout: 10000,
       connectTimeout: 5000,
     });
 
+
     try {
-      await userClient.bind(userDN, password);
+      const verify = await userClient.bind(userDN, password);
+      console.log('UserDN : ', userDN)
+      console.log('Password : ', password)
+      console.log('Verify : ', verify)
     } catch {
       await userClient.unbind();
       await client.unbind();

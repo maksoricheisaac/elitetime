@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { getAuthenticatedUser } from "@/lib/security/rbac";
+import { createActivityLog } from "@/actions/admin/logs";
 
 export async function createDepartment(formData: FormData) {
   const name = (formData.get("name") as string | null)?.trim() ?? "";
@@ -11,12 +13,21 @@ export async function createDepartment(formData: FormData) {
     return;
   }
 
-  await prisma.department.create({
+  const auth = await getAuthenticatedUser();
+
+  const department = await prisma.department.create({
     data: {
       name,
       description,
     },
   });
+
+  await createActivityLog(
+    auth.user.id,
+    "Création de département",
+    `Département: ${department.name}`,
+    "user",
+  );
 
   revalidatePath("/departements");
 }
@@ -38,6 +49,8 @@ export async function updateDepartment(formData: FormData) {
     return;
   }
 
+  const auth = await getAuthenticatedUser();
+
   await prisma.$transaction([
     prisma.department.update({
       where: { id },
@@ -56,6 +69,13 @@ export async function updateDepartment(formData: FormData) {
       },
     }),
   ]);
+
+  await createActivityLog(
+    auth.user.id,
+    "Mise à jour de département",
+    `Département: ${existing.name} -> ${name}`,
+    "user",
+  );
 
   revalidatePath("/departements");
 }
@@ -87,6 +107,16 @@ export async function deleteDepartment(formData: FormData) {
     return;
   }
 
+  const auth = await getAuthenticatedUser();
+
   await prisma.department.delete({ where: { id } });
+
+  await createActivityLog(
+    auth.user.id,
+    "Suppression de département",
+    `Département: ${department.name}`,
+    "user",
+  );
+
   revalidatePath("/departements");
 }

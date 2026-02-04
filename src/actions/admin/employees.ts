@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
-import { requireAdmin, logSecurityEvent, grantDefaultManagerPermissions } from "@/lib/security/rbac";
+import { requireAdmin, logSecurityEvent, grantDefaultManagerPermissions, getAuthenticatedUser } from "@/lib/security/rbac";
 import { syncEmployeesFromLdapCore } from "@/lib/ldap-sync-employees";
 
 export async function updateEmployee(formData: FormData) {
@@ -23,7 +23,9 @@ export async function updateEmployee(formData: FormData) {
     return;
   }
 
-  await prisma.user.update({
+  const auth = await getAuthenticatedUser();
+
+  const updated = await prisma.user.update({
     where: { id },
     data: {
       firstname,
@@ -38,6 +40,12 @@ export async function updateEmployee(formData: FormData) {
   if (role === "manager") {
     await grantDefaultManagerPermissions(id);
   }
+
+  await logSecurityEvent(
+    auth.user.id,
+    "EMPLOYEE_UPDATED",
+    `Mise à jour employé: ${updated.username} (id=${updated.id})`,
+  );
 
   revalidatePath("/employees");
   redirect("/employees?updated=1");

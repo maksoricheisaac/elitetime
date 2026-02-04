@@ -14,7 +14,6 @@ export async function GET() {
 
   const client = new Client({
     url,
-    tlsOptions: { rejectUnauthorized: false },
     timeout: 5000,
     connectTimeout: 5000,
   });

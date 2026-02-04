@@ -20,19 +20,16 @@ model User {
   updatedAt          DateTime            @updatedAt
   firstname          String?
   lastname           String?
+  teamLeadId         String?
   absences           Absence[]
   activityLogs       ActivityLog[]
+  breaks             Break[]
   correctionRequests CorrectionRequest[]
   pointages          Pointage[]
-  breaks             Break[]
   sessions           Session[]
-  userPermissions    UserPermission[]
-  // Hiérarchie d'équipe : un employé peut avoir un chef d'équipe (team lead)
-  teamLeadId         String?
   teamLead           User?               @relation("TeamLead", fields: [teamLeadId], references: [id])
   teamMembers        User[]              @relation("TeamLead")
-
-  departments Department[]
+  userPermissions    UserPermission[]
 }
 
 model Pointage {
@@ -57,8 +54,7 @@ model Break {
   endTime   String?
   duration  Int?
   createdAt DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Absence {
@@ -97,25 +93,25 @@ model ActivityLog {
   details   String
   timestamp DateTime     @default(now())
   type      ActivityType
-  user      User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model SystemSettings {
-  id                        Int      @id @default(1)
+  id                        Int       @id @default(1)
   workStartTime             String
   workEndTime               String
   breakDuration             Int
   overtimeThreshold         Int
   holidays                  Json
-  updatedAt                 DateTime @updatedAt
-  emailNotificationsEnabled Boolean  @default(true)
-  lateAlertsEnabled         Boolean  @default(true)
-  notificationsEnabled      Boolean  @default(true)
-  pointageRemindersEnabled  Boolean  @default(true)
-  maxSessionEndTime         String   @default("20:00")
-  ldapSyncEnabled           Boolean  @default(false)
-  ldapSyncIntervalMinutes   Int      @default(60)
+  updatedAt                 DateTime  @updatedAt
+  emailNotificationsEnabled Boolean   @default(true)
+  lateAlertsEnabled         Boolean   @default(true)
+  notificationsEnabled      Boolean   @default(true)
+  pointageRemindersEnabled  Boolean   @default(true)
+  maxSessionEndTime         String    @default("20:00")
   ldapLastSyncAt            DateTime?
+  ldapSyncEnabled           Boolean   @default(false)
+  ldapSyncIntervalMinutes   Int       @default(60)
 }
 
 model Department {
@@ -125,8 +121,6 @@ model Department {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   positions   Position[]
-  headId      String?
-  head        User?      @relation(fields: [headId], references: [id])
 
   @@map("Department")
 }
@@ -156,54 +150,52 @@ model Session {
 }
 
 model Permission {
-  id          String         @id @default(cuid())
-  name        String         @unique
-  description String?
-  category    String
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
-  userPermissions UserPermission[]
-
+  id              String           @id @default(cuid())
+  name            String           @unique
+  description     String?
+  category        String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
   pagePermissions PagePermission[]
+  userPermissions UserPermission[]
 }
 
 model UserPermission {
-  id           String      @id @default(cuid())
+  id           String     @id @default(cuid())
   userId       String
   permissionId String
   grantedBy    String
-  grantedAt    DateTime    @default(now())
-  user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedAt    DateTime   @default(now())
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, permissionId])
 }
 
 model Page {
-  id               String            @id @default(cuid())
-  code             String            @unique        // identifiant logique (ex: "employees", "reports")
-  path             String            @unique        // chemin de la route (ex: "/employees")
-  label            String                           // libellé affiché
-  category         String?                          // optionnel: pour regrouper les pages
-  allowedRoles     UserRole[]                       // rôles autorisés (admin, manager, employee...)
-  pagePermissions  PagePermission[]
+  id              String           @id @default(cuid())
+  code            String           @unique
+  path            String           @unique
+  label           String
+  category        String?
+  allowedRoles    UserRole[]
+  pagePermissions PagePermission[]
 }
 
 model PagePermission {
   pageId       String
   permissionId String
-
   page         Page       @relation(fields: [pageId], references: [id], onDelete: Cascade)
-  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([pageId, permissionId])
 }
 
 enum UserRole {
   employee
-  team_lead
   manager
   admin
+  team_lead
 }
 
 enum UserStatus {

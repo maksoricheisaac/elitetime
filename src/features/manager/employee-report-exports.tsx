@@ -5,6 +5,7 @@ import type { EmployeePointageDetailRow } from "@/features/manager/employee-poin
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import { useNotification } from "@/contexts/notification-context";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 interface EmployeeReportExportsProps {
   employee: {
@@ -31,6 +32,20 @@ function buildEmployeeSlug(firstname: string, lastname: string) {
     .toLowerCase();
 }
 
+async function logReportExport(reportType: string, details?: string) {
+  try {
+    await fetch("/api/activity/report-export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reportType, details }),
+    });
+  } catch {
+    // best-effort logging, ne pas casser l'UX
+  }
+}
+
 export function EmployeeReportExports({
   employee,
   from,
@@ -47,7 +62,7 @@ export function EmployeeReportExports({
   const hasData = rows.length > 0;
   const fileSlug = buildEmployeeSlug(employee.firstname, employee.lastname);
 
-  const handleExportCsv = () => {
+  const handleExportCsv = async () => {
     if (!hasData) {
       showInfo("Aucune donnée à exporter pour cette période.");
       return;
@@ -57,22 +72,23 @@ export function EmployeeReportExports({
       "Date",
       "Heure d'entrée",
       "Heure de sortie",
-      "Durée (heures)",
-      "Pause (minutes)",
+      "Durée",
+      "Pause",
       "Statut",
     ];
 
     const dataRows = rows.map((r) => {
       const d = new Date(r.date);
       const dateLabel = d.toLocaleDateString("fr-FR");
-      const durationHours = (r.duration ?? 0) / 60;
+      const durationLabel = formatMinutesHuman(r.duration ?? 0);
+      const pauseLabel = formatMinutesHuman(r.pauseMinutes ?? 0);
 
       return [
         dateLabel,
         r.entryTime ?? "",
         r.exitTime ?? "",
-        durationHours.toFixed(2).replace(".", ","),
-        String(r.pauseMinutes ?? 0),
+        durationLabel,
+        pauseLabel,
         r.status ?? "",
       ];
     });
@@ -89,6 +105,9 @@ export function EmployeeReportExports({
     a.click();
     URL.revokeObjectURL(url);
 
+    const periodDetails = `Employé: ${employee.firstname} ${employee.lastname} – période ${new Date(from).toLocaleDateString("fr-FR")} à ${new Date(to).toLocaleDateString("fr-FR")}`;
+    void logReportExport("EMPLOYEE_REPORT_CSV", periodDetails);
+
     showSuccess("Rapport CSV exporté avec succès");
   };
 
@@ -98,9 +117,12 @@ export function EmployeeReportExports({
       return;
     }
 
-    setIsExportingPdf(true);
-
     try {
+      setIsExportingPdf(true);
+
+      const periodDetails = `Employé: ${employee.firstname} ${employee.lastname} – période ${new Date(from).toLocaleDateString("fr-FR")} à ${new Date(to).toLocaleDateString("fr-FR")}`;
+      void logReportExport("EMPLOYEE_REPORT_PDF", periodDetails);
+
       const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
 
       const pdfDoc = await PDFDocument.create();
@@ -137,8 +159,10 @@ export function EmployeeReportExports({
         color: rgb(1, 1, 1),
       });
 
-      const employeeLabel = `${employee.firstname} ${employee.lastname}`;
-      page.drawText(employeeLabel, {
+      const employeeLabel = `${employee.firstname} ${employee.lastname}`.trim();
+      const displayEmployeeLabel =
+        employeeLabel.length > 40 ? `${employeeLabel.slice(0, 39)}…` : employeeLabel;
+      page.drawText(displayEmployeeLabel, {
         x: margin,
         y: height - headerHeight + 16,
         size: 12,
@@ -157,7 +181,7 @@ export function EmployeeReportExports({
 
       // Résumé
       const summaryTop = height - headerHeight - 24;
-      page.drawText(`Heures travaillées : ${totalHours}h`, {
+      page.drawText(`Heures travaillées : ${formatMinutesHuman(totalHours * 60)}`, {
         x: margin,
         y: summaryTop,
         size: 10,
@@ -178,7 +202,7 @@ export function EmployeeReportExports({
         font: fontRegular,
         color: textColor,
       });
-      page.drawText(`Heures supplémentaires : ${overtimeHours}h`, {
+      page.drawText(`Heures supplémentaires : ${formatMinutesHuman(overtimeHours * 60)}`, {
         x: margin,
         y: summaryTop - 42,
         size: 10,

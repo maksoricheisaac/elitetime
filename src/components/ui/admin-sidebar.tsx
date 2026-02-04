@@ -20,19 +20,6 @@ import { navigationRegistry, type NavigationItem } from '@/lib/navigation-regist
 import logo from '@public/logo/logo.png'
 import Image from 'next/image';
 
-// const menuItems = [
-//   { title: 'Dashboard', icon: LayoutDashboard, href: '#dashboard' },
-//   { title: 'Analytics', icon: BarChart3, href: '#analytics' },
-//   { title: 'Users', icon: Users, href: '#users' },
-//   { title: 'Content', icon: FileText, href: '#content' },
-//   { title: 'Activity', icon: Activity, href: '#activity' },
-//   { title: 'Database', icon: Database, href: '#database' },
-//   { title: 'Security', icon: Shield, href: '#security' },
-//   { title: 'Performance', icon: Zap, href: '#performance' },
-//   { title: 'Notifications', icon: Bell, href: '#notifications' },
-//   { title: 'Settings', icon: Settings, href: '#settings' },
-// ];
-
 export const AdminSidebar = memo(() => {
   const { user } = useAuth()
   const { hasPermission, loading: permissionsLoading, refetch: refetchPermissions } = useUserPermissions();
@@ -108,14 +95,6 @@ export const AdminSidebar = memo(() => {
                 <div className="flex items-center justify-center rounded-lg -mt-5 group-data-[collapsible=icon]:mt-0">
                   <Image src={logo} alt="logo" width={150} height={150} />
                 </div>
-
-                <div className="grid text-center text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                  <span className="truncate font-semibold">Elite Time</span>
-                  <span className="truncate text-xs">
-                    {user?.role === 'admin' ? 'Admin Panel' : 
-                     user?.role === 'manager' ? 'Espace Manager' : 'Espace Employé'}
-                  </span>
-                </div> 
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>

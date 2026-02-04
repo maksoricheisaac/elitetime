@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { requireNavigationAccessById } from "@/lib/navigation-guard";
+import { formatMinutesHuman } from "@/lib/time-format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -182,7 +183,7 @@ export default async function EmployeeReportDetailPage({ params, searchParams }:
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-1 rounded-lg border bg-background/60 p-3">
               <p className="text-xs font-medium text-muted-foreground">Heures travaillées</p>
-              <p className="text-2xl font-bold">{totalHours}h</p>
+              <p className="text-2xl font-bold">{formatMinutesHuman(totalHours * 60)}</p>
             </div>
             <div className="space-y-1 rounded-lg border bg-background/60 p-3">
               <p className="text-xs font-medium text-muted-foreground">Retards</p>
@@ -194,7 +195,7 @@ export default async function EmployeeReportDetailPage({ params, searchParams }:
             </div>
             <div className="space-y-1 rounded-lg border bg-background/60 p-3">
               <p className="text-xs font-medium text-muted-foreground">Heures sup</p>
-              <p className="text-2xl font-bold text-success">{overtimeHours}h</p>
+              <p className="text-2xl font-bold text-success">{formatMinutesHuman(overtimeHours * 60)}</p>
             </div>
           </div>
         </CardContent>

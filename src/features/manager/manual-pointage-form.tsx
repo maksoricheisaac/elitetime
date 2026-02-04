@@ -2,12 +2,14 @@
 
 import { useTransition } from "react";
 import { useForm } from "react-hook-form";
+import { useRouter } from "next/navigation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { manualPointageFormSchema, type ManualPointageFormValues } from "@/schemas/manager/manual-pointage";
 import { submitManualPointage } from "@/actions/manager/pointages";
+import { useNotification } from "@/contexts/notification-context";
 
 interface ManualPointageFormProps {
   managerId: string;
@@ -23,6 +25,8 @@ interface ManualPointageFormProps {
 
 export function ManualPointageForm({ managerId, employees }: ManualPointageFormProps) {
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const { showSuccess, showError, showWarning } = useNotification();
 
   const form = useForm<ManualPointageFormValues>({
     resolver: zodResolver(manualPointageFormSchema),
@@ -39,11 +43,18 @@ export function ManualPointageForm({ managerId, employees }: ManualPointageFormP
 
   const onSubmit = (values: ManualPointageFormValues) => {
     const { date, rows } = values;
+    const filledRows = rows.filter((row) => row.entryTime && row.exitTime);
 
-    startTransition(() => {
-      const promises = rows
-        .filter((row) => row.entryTime && row.exitTime)
-        .map((row) => {
+    if (filledRows.length === 0) {
+      showWarning(
+        "Aucun pointage à enregistrer. Renseignez au moins une heure d'entrée et de sortie.",
+      );
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const promises = filledRows.map((row) => {
           const formData = new FormData();
           formData.append("managerId", managerId);
           formData.append("userId", row.userId);
@@ -53,7 +64,32 @@ export function ManualPointageForm({ managerId, employees }: ManualPointageFormP
           return submitManualPointage(formData);
         });
 
-      void Promise.all(promises);
+        await Promise.all(promises);
+        showSuccess("Les pointages ont été enregistrés.");
+
+        form.reset({
+          date: "",
+          rows: employees.map((e) => ({
+            userId: e.id,
+            entryTime: "",
+            exitTime: "",
+          })),
+        });
+      } catch (error) {
+        console.error(error);
+        showError("Une erreur est survenue lors de l'enregistrement des pointages.");
+      }
+    });
+  };
+
+  const handleReset = () => {
+    form.reset({
+      date: "",
+      rows: employees.map((e) => ({
+        userId: e.id,
+        entryTime: "",
+        exitTime: "",
+      })),
     });
   };
 
@@ -136,8 +172,32 @@ export function ManualPointageForm({ managerId, employees }: ManualPointageFormP
           </table>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button className="cursor-pointer" type="submit" disabled={isPending || form.formState.isSubmitting}>
+        <div className="flex justify-between gap-2">
+          <div className="flex gap-2">
+            <Button
+              className="cursor-pointer"
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/pointages")}
+              disabled={isPending || form.formState.isSubmitting}
+            >
+              Retour aux pointages
+            </Button>
+            <Button
+              className="cursor-pointer"
+              type="button"
+              variant="outline"
+              onClick={handleReset}
+              disabled={isPending || form.formState.isSubmitting}
+            >
+              Réinitialiser les entrées
+            </Button>
+          </div>
+          <Button
+            className="cursor-pointer"
+            type="submit"
+            disabled={isPending || form.formState.isSubmitting}
+          >
             {isPending || form.formState.isSubmitting ? "Enregistrement..." : "Enregistrer le pointage"}
           </Button>
         </div>

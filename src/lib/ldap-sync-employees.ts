@@ -128,10 +128,6 @@ export async function syncEmployeesFromLdapCore(): Promise<LdapSyncResult> {
 
   const client = new Client({
     url: LDAP_URL,
-    tlsOptions: {
-      rejectUnauthorized: process.env.NODE_ENV === "production",
-      minVersion: "TLSv1.2",
-    },
     timeout: 10000,
     connectTimeout: 5000,
   });

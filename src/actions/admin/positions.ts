@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
+import { getAuthenticatedUser } from "@/lib/security/rbac";
+import { createActivityLog } from "@/actions/admin/logs";
 
 export async function getPositionsByDepartment(departmentId: string) {
   const positions = await prisma.position.findMany({
@@ -68,13 +70,22 @@ export async function createPositionFromForm(formData: FormData) {
     return;
   }
 
-  await prisma.position.create({
+  const auth = await getAuthenticatedUser();
+
+  const position = await prisma.position.create({
     data: {
       name,
       description,
       departmentId,
     },
   });
+
+  await createActivityLog(
+    auth.user.id,
+    "Création de poste",
+    `Poste: ${position.name} (id=${position.id})`,
+    "user",
+  );
 
   revalidatePath("/postes");
 }
@@ -89,7 +100,9 @@ export async function updatePositionFromForm(formData: FormData) {
     return;
   }
 
-  await prisma.position.update({
+  const auth = await getAuthenticatedUser();
+
+  const position = await prisma.position.update({
     where: { id },
     data: {
       name,
@@ -97,6 +110,13 @@ export async function updatePositionFromForm(formData: FormData) {
       departmentId,
     },
   });
+
+  await createActivityLog(
+    auth.user.id,
+    "Mise à jour de poste",
+    `Poste: ${position.name} (id=${position.id})`,
+    "user",
+  );
 
   revalidatePath("/postes");
 }
@@ -107,9 +127,18 @@ export async function deletePositionFromForm(formData: FormData) {
     return;
   }
 
-  await prisma.position.delete({
+  const auth = await getAuthenticatedUser();
+
+  const deleted = await prisma.position.delete({
     where: { id },
   });
+
+  await createActivityLog(
+    auth.user.id,
+    "Suppression de poste",
+    `Poste: ${deleted.name} (id=${deleted.id})`,
+    "user",
+  );
 
   revalidatePath("/postes");
 }

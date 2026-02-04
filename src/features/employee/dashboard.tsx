@@ -4,6 +4,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNotification } from "@/contexts/notification-context";
+import { formatMinutesHuman } from "@/lib/time-format";
 import { useRealtime } from "@/contexts/realtime-context";
 import { AlertCircle, Coffee, X } from "lucide-react";
 import type { SafeUser } from "@/lib/session";
@@ -83,17 +84,7 @@ export default function EmployeeDashboardClient({
 					if (diffMs !== 0 && totalSeconds >= 30) {
 						const isLate = diffMs > 0;
 						const minutes = Math.floor(totalSeconds / 60);
-						const seconds = totalSeconds % 60;
-						const minutesPart =
-							minutes > 0
-								? `${minutes} minute${minutes > 1 ? "s" : ""}`
-								: "";
-						const secondsPart =
-							seconds > 0
-								? `${seconds} seconde${seconds > 1 ? "s" : ""}`
-								: "";
-						const separator = minutesPart && secondsPart ? " et " : "";
-						const detail = `${minutesPart}${separator}${secondsPart}` || "0 seconde";
+						const detail = formatMinutesHuman(minutes);
 						const message = isLate
 							? `Vous êtes en retard de ${detail} par rapport à l'heure prévue (${workStartTime}).`
 							: `Vous êtes en avance de ${detail} sur l'heure prévue (${workStartTime}).`;
@@ -139,17 +130,7 @@ export default function EmployeeDashboardClient({
 					// On ignore les écarts inférieurs à 30s pour éviter les faux positifs
 					if (diffMs !== 0 && totalSeconds >= 30) {
 						const minutes = Math.floor(totalSeconds / 60);
-						const seconds = totalSeconds % 60;
-						const minutesPart =
-							minutes > 0
-								? `${minutes} minute${minutes > 1 ? "s" : ""}`
-								: "";
-						const secondsPart =
-							seconds > 0
-								? `${seconds} seconde${seconds > 1 ? "s" : ""}`
-								: "";
-						const separator = minutesPart && secondsPart ? " et " : "";
-						const detail = `${minutesPart}${separator}${secondsPart}` || "0 seconde";
+						const detail = formatMinutesHuman(minutes);
 						const isAfter = diffMs > 0;
 						const message = isAfter
 							? `Vous avez dépassé l'heure de fin prévue de ${detail} (fin prévue: ${workEndTime}).`
@@ -224,19 +205,19 @@ export default function EmployeeDashboardClient({
 				});
 				setIsOnBreak(false);
 				if (updated.duration != null) {
-					showSuccess(`Pause terminée. Durée: ${updated.duration} minutes`);
+					const durationLabel = formatMinutesHuman(updated.duration);
+					showSuccess(`Pause terminée. Durée: ${durationLabel}`);
 					const targetMinutes = 60;
 					const delta = updated.duration - targetMinutes;
 					if (delta > 0) {
+						const deltaLabel = formatMinutesHuman(delta);
 						showWarning(
-							`Votre pause a dépassé 1 heure de ${delta} minute${delta > 1 ? "s" : ""}.`,
+							`Votre pause a dépassé 1 heure de ${deltaLabel}.`,
 						);
 					} else if (delta < 0) {
-						const absDelta = Math.abs(delta);
+						const absDeltaLabel = formatMinutesHuman(Math.abs(delta));
 						showInfo(
-							`Votre pause a duré ${updated.duration} minute${
-								updated.duration > 1 ? "s" : ""
-							} (soit ${absDelta} minute${absDelta > 1 ? "s" : ""} de moins que 1 heure).`,
+							`Votre pause a duré ${durationLabel} (soit ${absDeltaLabel} de moins que 1 heure).`,
 						);
 					}
 				}

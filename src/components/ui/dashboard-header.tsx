@@ -89,7 +89,7 @@ export const DashboardHeader = memo(
           }));
 
     const canSeeAlerts =
-      !!user && (user.role === "employee" || user.role === "admin" || user.role === "manager");
+      !!user && (user.role === "employee" || user.role === "admin" || user.role === "manager" || user.role === "team_lead");
 
     useEffect(() => {
       const updateTime = () => {

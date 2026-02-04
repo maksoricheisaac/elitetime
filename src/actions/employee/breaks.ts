@@ -1,6 +1,8 @@
 "use server";
 
 import prisma from "@/lib/prisma";
+import { createActivityLog } from "@/actions/admin/logs";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 function formatNowToTime(): string {
   const now = new Date();
@@ -20,6 +22,22 @@ export async function startEmployeeBreak(userId: string) {
       startTime,
     },
   });
+
+  // Log break start
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { firstname: true, lastname: true, username: true },
+  });
+
+  if (user) {
+    const label = `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.username;
+    await createActivityLog(
+      userId,
+      "Démarrage de pause",
+      `${label} – ${startTime}`,
+      "pointage",
+    );
+  }
 
   return breakEntry;
 }
@@ -53,6 +71,22 @@ export async function endEmployeeBreak(userId: string) {
       duration,
     },
   });
+
+  // Log break end
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { firstname: true, lastname: true, username: true },
+  });
+
+  if (user) {
+    const label = `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.username;
+    await createActivityLog(
+      userId,
+      "Fin de pause",
+      `${label} – ${updated.endTime} (durée: ${formatMinutesHuman(duration)})`,
+      "pointage",
+    );
+  }
 
   return updated;
 }

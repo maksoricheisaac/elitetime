@@ -3,6 +3,7 @@
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 export interface EmployeePointageDetailRow {
   id: string;
@@ -45,13 +46,7 @@ const columns: ColumnDef<EmployeePointageDetailRow>[] = [
       if (!duration || duration <= 0) {
         return <span>-</span>;
       }
-      const hours = Math.floor(duration / 60);
-      const minutes = duration % 60;
-      return (
-        <span>
-          {hours}h {minutes}m
-        </span>
-      );
+      return <span>{formatMinutesHuman(duration)}</span>;
     },
   },
   {
@@ -62,13 +57,7 @@ const columns: ColumnDef<EmployeePointageDetailRow>[] = [
       if (!pauseMinutes || pauseMinutes <= 0) {
         return <span>-</span>;
       }
-      const hours = Math.floor(pauseMinutes / 60);
-      const minutes = pauseMinutes % 60;
-      return (
-        <span>
-          {hours}h {minutes}m
-        </span>
-      );
+      return <span>{formatMinutesHuman(pauseMinutes)}</span>;
     },
   },
   {

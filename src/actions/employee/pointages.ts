@@ -3,6 +3,7 @@
 import { PointageStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/prisma";
 import { createActivityLog } from "@/actions/admin/logs";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 const DEFAULT_WORK_START_TIME = "08:45";
 const DEFAULT_MAX_SESSION_END_TIME = "20:00";
@@ -345,9 +346,7 @@ export async function endEmployeePointage(userId: string) {
   });
 
   if (user) {
-    const hours = Math.floor(durationMinutes / 60);
-    const mins = durationMinutes % 60;
-    const durationStr = `${hours}h${mins}m`;
+    const durationStr = formatMinutesHuman(durationMinutes);
     await createActivityLog(
       userId,
       "Pointage de sortie",

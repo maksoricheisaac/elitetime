@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createDepartmentFormSchema, type CreateDepartmentFormValues } from "@/schemas/admin/forms/departments";
 import { useNotification } from "@/contexts/notification-context";
+import { Textarea } from "@/components/ui/textarea";
 
 
 interface CreateDepartmentFormProps {
@@ -78,7 +79,7 @@ export function CreateDepartmentForm({ action, onSuccess }: CreateDepartmentForm
               <FormItem>
                 <FormLabel>Description du département</FormLabel>
                 <FormControl>
-                  <Input
+                  <Textarea
                     id="new-department-description"
                     placeholder="Description courte du département (optionnel)"
                     {...field}

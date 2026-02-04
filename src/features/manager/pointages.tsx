@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { PresenceChart } from "@/components/charts/presence-chart";
+import { formatMinutesHuman } from "@/lib/time-format";
 import { useNotification } from "@/contexts/notification-context";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { EmployeeReportDateRangeFilter } from "@/features/manager/employee-report-date-range-filter";
@@ -30,6 +31,20 @@ type TodayRow = {
   pointage: Pointage | null;
   breaks: Break[];
 };
+
+async function logReportExport(reportType: string, details?: string) {
+  try {
+    await fetch("/api/activity/report-export", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ reportType, details }),
+    });
+  } catch {
+    // best-effort logging, ne pas casser l'UX
+  }
+}
 
 export default function ManagerPointagesClient({ team, pointages, absences, breaks }: ManagerPointagesClientProps) {
   const { showSuccess, showError, showInfo } = useNotification();
@@ -227,6 +242,13 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
     try {
       setIsExportingPdf(true);
 
+      const today = new Date();
+      const todayLabel = today.toLocaleDateString("fr-FR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      void logReportExport("TEAM_DAILY_POINTAGES_PDF", `Date: ${todayLabel}`);
       const pdfDoc = await PDFDocument.create();
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
       let page = pdfDoc.addPage();
@@ -252,13 +274,6 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
           y = height - margin;
         }
       };
-
-      const today = new Date();
-      const todayLabel = today.toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
 
       // Titre
       drawLine("Pointages de l'équipe", margin, y, 16);
@@ -301,8 +316,12 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
         const pointage = row.pointage;
         const employeeBreaks = row.breaks;
 
-        const employeeName = `${employee.firstname ?? ""} ${employee.lastname ?? ""}`.trim() || "-";
-        const department = employee.department ?? "-";
+        const employeeNameRaw = `${employee.firstname ?? ""} ${employee.lastname ?? ""}`.trim() || "-";
+        const employeeName =
+          employeeNameRaw.length > 28 ? `${employeeNameRaw.slice(0, 27)}…` : employeeNameRaw;
+        const departmentRaw = employee.department ?? "-";
+        const department =
+          departmentRaw.length > 20 ? `${departmentRaw.slice(0, 19)}…` : departmentRaw;
         const entryTime = pointage?.entryTime ?? "-";
         const exitTime = pointage?.exitTime ?? "-";
 
@@ -329,15 +348,13 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
 
           const totalMinutes = employeeBreaks.reduce((sum, b) => sum + (b.duration ?? 0), 0);
           if (totalMinutes > 0) {
-            totalBreak = `${totalMinutes} min`;
+            totalBreak = formatMinutesHuman(totalMinutes);
           }
         }
 
         let workDuration = "-";
         if (pointage && pointage.duration && pointage.duration > 0) {
-          const hours = Math.floor(pointage.duration / 60);
-          const minutes = pointage.duration % 60;
-          workDuration = `${hours}h ${minutes}m`;
+          workDuration = formatMinutesHuman(pointage.duration);
         }
 
         drawLine(employeeName, colX.name, y, 8);
@@ -612,7 +629,7 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
         <div className="lg:col-span-3 h-full space-y-3 flex flex-col">
           <PresenceChart
             data={presenceData}
-            title={`Présence de l&apos;équipe sur les ${rangeLabel}`}
+            title={`Présence de l'équipe sur les ${rangeLabel}`}
             description={`Nombre de collaborateurs présents et absents sur les ${rangeLabel.toLowerCase()}`}
           />
         </div>

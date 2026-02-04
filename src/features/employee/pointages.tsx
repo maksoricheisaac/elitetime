@@ -10,6 +10,7 @@ import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tool
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 interface EmployeePointagesClientProps {
   pointages: Pointage[];
@@ -92,13 +93,7 @@ const pointagesColumns: ColumnDef<Pointage>[] = [
     cell: ({ row }) => {
       const duration = row.original.duration ?? 0;
       if (duration <= 0) return <span>-</span>;
-      const hours = Math.floor(duration / 60);
-      const minutes = duration % 60;
-      return (
-        <span>
-          {hours}h {minutes}m
-        </span>
-      );
+      return <span>{formatMinutesHuman(duration)}</span>;
     },
   },
   {
@@ -241,7 +236,7 @@ export default function EmployeePointagesClient({ pointages }: EmployeePointages
                           <div className="flex flex-col gap-1">
                             <span>
                               <span className="text-[0.70rem] uppercase text-muted-foreground mr-1">Durée</span>
-                              <span className="font-bold">{data.durationHours.toFixed(2)} h</span>
+                              <span className="font-bold">{formatMinutesHuman(Math.round(data.durationHours * 60))}</span>
                             </span>
                             {data.hasPointage ? (
                               <span className="text-[0.70rem] uppercase text-muted-foreground">

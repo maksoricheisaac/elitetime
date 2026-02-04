@@ -20,7 +20,7 @@ export const UserNav = () => {
                   </Avatar>
                   <div className="hidden md:flex flex-col items-start">
                     <p className="text-sm text-white font-semibold leading-none">{user?.firstname}</p>
-                    <p className="text-xs text-white-500 capitalize">{user?.role}</p>
+                    <p className="text-xs text-white-500 capitalize">{user?.role === 'employee' ? 'Employé' : user?.role === 'admin' ? 'Admin' : user?.role === 'manager' ? 'Manager' : user?.role === 'team_lead' ? 'Team Lead' : 'Unknown'}</p>
                   </div>
                 </div>
               </Button>
@@ -37,7 +37,7 @@ export const UserNav = () => {
                     <p className="text-sm font-semibold">{user?.firstname} {user?.lastname}</p>
                     <p className="text-xs text-muted-foreground">{user?.email}</p>
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary capitalize">
-                      {user?.role}
+                      {user?.role === 'employee' ? 'Employé' : user?.role === 'admin' ? 'Admin' : user?.role === 'manager' ? 'Manager' : user?.role === 'team_lead' ? 'Team Lead' : 'Unknown'}
                     </span>
                   </div>
                 </div>

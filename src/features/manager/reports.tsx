@@ -13,6 +13,7 @@ import { EmployeeReportDateRangeFilter } from "@/features/manager/employee-repor
 import type { User, Pointage, Break as BreakModel } from "@/generated/prisma/client";
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 interface ManagerReportsClientProps {
   team: User[];
@@ -64,14 +65,19 @@ const employeeStatsColumns: ColumnDef<EmployeeStats>[] = [
   {
     accessorKey: "totalHours",
     header: () => <span>Heures travaillées</span>,
-    cell: ({ row }) => <span>{row.original.totalHours}h</span>,
+    cell: ({ row }) => {
+      const minutes = row.original.totalHours * 60;
+      return <span>{formatMinutesHuman(minutes)}</span>;
+    },
   },
   {
     accessorKey: "totalBreakMinutes",
     header: () => <span>Heures de pause</span>,
-    cell: ({ row }) => (
-      <span>{Math.round(row.original.totalBreakMinutes / 60)}h</span>
-    ),
+    cell: ({ row }) => {
+      const minutes = row.original.totalBreakMinutes;
+      if (!minutes || minutes <= 0) return <span>-</span>;
+      return <span>{formatMinutesHuman(minutes)}</span>;
+    },
   },
   {
     accessorKey: "lateCount",
@@ -104,7 +110,7 @@ const employeeStatsColumns: ColumnDef<EmployeeStats>[] = [
       const value = row.original.overtimeHours;
       return (
         <span className={value > 0 ? "text-success font-semibold" : ""}>
-          {value}h
+          {formatMinutesHuman(value * 60)}
         </span>
       );
     },
@@ -271,15 +277,21 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
         "Absences",
         "Heures sup",
       ],
-      ...filteredStats.map((s) => [
-        `${s.employee.firstname} ${s.employee.lastname}`,
-        s.employee.department || "",
-        s.totalHours.toString(),
-        Math.round(s.totalBreakMinutes / 60).toString(),
-        s.lateCount.toString(),
-        s.absenceCount.toString(),
-        s.overtimeHours.toString(),
-      ]),
+      ...filteredStats.map((s) => {
+        const totalMinutes = s.totalHours * 60;
+        const overtimeMinutes = s.overtimeHours * 60;
+        const breakMinutes = s.totalBreakMinutes;
+
+        return [
+          `${s.employee.firstname} ${s.employee.lastname}`,
+          s.employee.department || "",
+          formatMinutesHuman(totalMinutes),
+          breakMinutes > 0 ? formatMinutesHuman(breakMinutes) : "0 min",
+          s.lateCount.toString(),
+          s.absenceCount.toString(),
+          formatMinutesHuman(overtimeMinutes),
+        ];
+      }),
     ];
 
     const csv = rows.map((r) => r.map((v) => `"${v}"`).join(";")).join("\n");
@@ -308,7 +320,7 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
       ? "Tous les départements"
       : `Département : ${filterDepartment}`;
   const employeesLabel = `${filteredStats.length} employé(s)`;
-  const summaryLabel = `Total heures : ${totalTeamHours}h  |  Moyenne : ${avgHours}h  |  Heures sup : ${totalOvertime}h`;
+  const summaryLabel = `Total heures : ${formatMinutesHuman(totalTeamHours * 60)}  |  Moyenne : ${formatMinutesHuman(avgHours * 60)}  |  Heures sup : ${formatMinutesHuman(totalOvertime * 60)}`;
 
 try {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");

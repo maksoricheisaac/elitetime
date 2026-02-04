@@ -31,7 +31,13 @@ export default async function AppPointagesPage({
 }: {
   searchParams?: Promise<{ from?: string; to?: string }>;
 }) {
-  const auth = await requireNavigationAccessById("pointages");
+  let auth;
+  try {
+    auth = await requireNavigationAccessById("pointages");
+  } catch {
+    redirect("/dashboard");
+  }
+
   const user = auth.user;
 
   // Employé : par défaut ne voit que ses propres pointages, sauf s'il a la permission view_team_pointages
@@ -39,19 +45,24 @@ export default async function AppPointagesPage({
     const permissions = await getUserPermissions(user.id);
     const permissionSet = new Set(permissions.map((p) => p.name));
     const canViewTeamPointages = permissionSet.has("view_team_pointages");
+    const canViewAllPointages = permissionSet.has("view_all_pointages");
 
-    if (!canViewTeamPointages) {
+    // Si l'employé n'a aucune permission d'accès aux pointages d'autres personnes,
+    // on retombe sur sa vue personnelle (cas théorique car le garde bloque déjà ces accès).
+    if (!canViewTeamPointages && !canViewAllPointages) {
       const pointages = await getEmployeeRecentPointages(user.id, 30);
       return <EmployeePointagesClient pointages={pointages} canEdit={false} />;
     }
 
-    // Employé avec accès équipe : on limite l'équipe à son département
+    // Employé avec accès équipe ou global : on utilise la vue manager.
+    // - view_team_pointages : limité à son département
+    // - view_all_pointages : tous les employés actifs
     const employeeWhere: Prisma.UserWhereInput = {
       role: "employee",
       status: "active",
     };
 
-    if (user.department) {
+    if (canViewTeamPointages && user.department) {
       employeeWhere.department = user.department;
     }
 
