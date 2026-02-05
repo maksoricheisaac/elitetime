@@ -3,14 +3,16 @@
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { useNotification } from "@/contexts/notification-context";
 import { formatMinutesHuman } from "@/lib/time-format";
 import { useRealtime } from "@/contexts/realtime-context";
-import { AlertCircle, Coffee, X } from "lucide-react";
+import { Coffee } from "lucide-react";
 import type { SafeUser } from "@/lib/session";
 import type { Pointage, Break as BreakModel } from "@/generated/prisma/client";
 import { useRouter } from "next/navigation";
-import { startEmployeePointage, endEmployeePointage } from "@/actions/employee/pointages";
+import { startEmployeePointage, endEmployeePointage, updateEmployeeLateReason } from "@/actions/employee/pointages";
 import { startEmployeeBreak, endEmployeeBreak } from "@/actions/employee/breaks";
 import { formatDateFR } from "@/lib/date-utils";
 
@@ -45,6 +47,7 @@ export default function EmployeeDashboardClient({
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [currentTime, setCurrentTime] = useState(new Date());
+	const [hasMounted, setHasMounted] = useState(false);
 	const [breaks, setBreaks] = useState<Break[]>(initialBreaks ?? []);
 	const [isOnBreak, setIsOnBreak] = useState(
 		() => (initialBreaks ?? []).some((b) => !b.endTime),
@@ -61,6 +64,10 @@ export default function EmployeeDashboardClient({
 	return () => clearInterval(timer);
 	}, []);
 
+	useEffect(() => {
+		setHasMounted(true);
+	}, []);
+
 	const handlePointageEntry = () => {
 		startTransition(async () => {
 			try {
@@ -73,27 +80,50 @@ export default function EmployeeDashboardClient({
 					"Pointage d'entrée enregistré à " + currentTime.toLocaleTimeString("fr-FR"),
 				);
 
-				// Notification détaillée retard / avance par rapport à l'heure de début prévue
-				if (workStartTime) {
+				let delayMinutes: number | null = null;
+				let delayLabel: string | null = null;
+
+				// Calcul de l'écart par rapport à l'heure de début prévue
+				if (workStartTime && pointage.entryTime) {
 					const [startH, startM] = workStartTime.split(":").map((v) => Number(v) || 0);
-					const scheduled = new Date(currentTime);
-					scheduled.setHours(startH, startM, 0, 0);
-					const diffMs = currentTime.getTime() - scheduled.getTime();
-					const totalSeconds = Math.abs(Math.round(diffMs / 1000));
-					// On ignore les écarts inférieurs à 30s pour éviter les faux positifs
-					if (diffMs !== 0 && totalSeconds >= 30) {
-						const isLate = diffMs > 0;
-						const minutes = Math.floor(totalSeconds / 60);
-						const detail = formatMinutesHuman(minutes);
-						const message = isLate
-							? `Vous êtes en retard de ${detail} par rapport à l'heure prévue (${workStartTime}).`
-							: `Vous êtes en avance de ${detail} sur l'heure prévue (${workStartTime}).`;
-						if (isLate) {
-							showWarning(message);
-						} else {
-							showInfo(message);
-						}
+					const [entryH, entryM] = pointage.entryTime
+						.split(":")
+						.map((v) => Number(v) || 0);
+					const scheduledMinutes = startH * 60 + startM;
+					const entryMinutes = entryH * 60 + entryM;
+					const diffMinutes = entryMinutes - scheduledMinutes; // > 0 : retard, < 0 : avance
+
+					if (diffMinutes > 0) {
+						delayMinutes = diffMinutes;
+						delayLabel = formatMinutesHuman(diffMinutes);
+					} else if (diffMinutes < 0) {
+						const advanceMinutes = Math.abs(diffMinutes);
+						const advanceLabel = formatMinutesHuman(advanceMinutes);
+						showInfo(
+							`Vous êtes en avance de ${advanceLabel} sur l'heure prévue (${workStartTime}).`,
+						);
 					}
+				}
+
+				// Si le pointage créé est en retard, on ouvre immédiatement la modale de motif
+				// et on émet une alerte temps réel enrichie.
+				if (pointage.status === "late") {
+					setShowAlertCard(true);
+					setShowLateReasonForm(true);
+					setLateReason(pointage.lateReason ?? "");
+
+					const displayName =
+						`${user.firstname ?? ""} ${user.lastname ?? ""}`.trim() || user.username;
+
+					emitLateAlert({
+						userId: user.id,
+						userName: displayName,
+						timestamp: new Date().toISOString(),
+						delayMinutes,
+						delayLabel,
+						workStartTime: workStartTime || null,
+						entryTime: pointage.entryTime ?? null,
+					});
 				}
 
 				router.refresh();
@@ -230,11 +260,28 @@ export default function EmployeeDashboardClient({
 
 	const { lates: weekLates, overtime: weekOvertime } = weekStats;
 	const [showAlertCard, setShowAlertCard] = useState(
-		todayPointage?.status === "late" || weekLates > 0 || weekOvertime > 0,
+		todayPointage?.status === "late" && !todayPointage?.lateReason,
+	);
+	const [lateReason, setLateReason] = useState(todayPointage?.lateReason ?? "");
+	const [isSavingLateReason, setIsSavingLateReason] = useState(false);
+	const [showLateReasonForm, setShowLateReasonForm] = useState(
+		todayPointage?.status === "late" && !todayPointage?.lateReason,
 	);
 
 	const today = new Date();
 	const todayISO = today.toISOString().split("T")[0];
+
+	let todayLateDelayLabel: string | null = null;
+	if (todayPointage?.status === "late" && todayPointage.entryTime && workStartTime) {
+		const [startH, startM] = workStartTime.split(":").map((v) => Number(v) || 0);
+		const [entryH, entryM] = todayPointage.entryTime.split(":").map((v) => Number(v) || 0);
+		const scheduledMinutes = startH * 60 + startM;
+		const entryMinutes = entryH * 60 + entryM;
+		const diffMinutes = entryMinutes - scheduledMinutes;
+		if (diffMinutes > 0) {
+			todayLateDelayLabel = formatMinutesHuman(diffMinutes);
+		}
+	}
 
 	const computedWorkedHours = (() => {
 	if (!todayPointage?.entryTime || !isActive || isOnBreak) return null;
@@ -330,6 +377,26 @@ export default function EmployeeDashboardClient({
 
 	const primaryCtaDisabled = isPending || isOnLeaveToday;
 
+	const handleSaveLateReason = async () => {
+		try {
+			setIsSavingLateReason(true);
+			const updated = await updateEmployeeLateReason(user.id, lateReason);
+			if (!updated) {
+				showError("Impossible d'enregistrer le motif de retard.");
+				return;
+			}
+			showSuccess("Motif de retard enregistré.");
+			setShowLateReasonForm(false);
+			setShowAlertCard(false);
+			// on laisse router.refresh géré par les prochaines actions de pointage si besoin
+		} catch (e) {
+			console.error(e);
+			showError("Une erreur est survenue lors de l'enregistrement du motif.");
+		} finally {
+			setIsSavingLateReason(false);
+		}
+	};
+
 	return (
 	<div className="space-y-6 lg:space-y-8">
 		<div>
@@ -341,50 +408,92 @@ export default function EmployeeDashboardClient({
 		</p>
 		</div>
 
-		{showAlertCard &&
-		(todayPointage?.status === "late" || weekLates > 0 || weekOvertime > 0) && (
-			<Card className="border border-amber-200 bg-card text-amber-900 dark:border-amber-900/40">
-			<CardContent className="flex items-start gap-3 py-3">
-				<AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
-				<div className="space-y-1 text-sm">
-				{todayPointage?.status === "late" && (
-					<p>Vous avez pointé en retard aujourd&apos;hui.</p>
-				)}
-				{weekLates > 0 && (
-					<p>
-					{weekLates === 1
-						? "1 retard enregistré cette semaine."
-						: `${weekLates} retards enregistrés cette semaine.`}
-					</p>
-				)}
-				{weekOvertime > 0 && (
-					<p>
-					{weekOvertime}h d&apos;heures supplémentaires cette semaine.
-					</p>
-				)}
+		<Dialog open={showAlertCard} onOpenChange={setShowAlertCard}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Retard détecté</DialogTitle>
+					<DialogDescription>
+						{todayPointage?.status === "late" || showLateReasonForm ? (
+							<>
+								Vous avez pointé en retard aujourd&apos;hui
+								{todayLateDelayLabel ? ` de ${todayLateDelayLabel}` : ""}.
+							</>
+						) : (
+							"Un retard a été enregistré sur votre journée."
+						)}
+					</DialogDescription>
+				</DialogHeader>
+				<div className="space-y-2 text-sm">
+					{weekLates > 0 && (
+						<p>
+							{weekLates === 1
+								? "1 retard enregistré cette semaine."
+								: `${weekLates} retards enregistrés cette semaine.`}
+						</p>
+					)}
+					{weekOvertime > 0 && (
+						<p>
+							{weekOvertime}h d&apos;heures supplémentaires cette semaine.
+						</p>
+					)}
 				</div>
-				<Button
-				type="button"
-				variant="ghost"
-				size="icon"
-				className="ml-auto h-6 w-6 rounded-full text-amber-500 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-900/30 cursor-pointer"
-				onClick={() => {
-					setShowAlertCard(false);
-					if (todayPointage?.status === "late") {
-					emitLateAlert({
-						userId: user.id,
-						userName: `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim() || user.username,
-						timestamp: new Date().toISOString(),
-					});
-					}
-				}}
-				aria-label="Fermer l&apos;alerte"
-				>
-				<X className="h-3 w-3" />
-				</Button>
-			</CardContent>
-			</Card>
-		)}
+				{(todayPointage?.status === "late" || showLateReasonForm || todayPointage?.lateReason) && (
+					<div className="mt-4 space-y-2">
+						{todayPointage?.lateReason && !showLateReasonForm && (
+							<p className="text-xs text-muted-foreground">
+								Motif renseigné : {todayPointage.lateReason}
+							</p>
+						)}
+						{!todayPointage?.lateReason && !showLateReasonForm && (
+							<div className="flex flex-wrap items-center gap-2">
+								<span className="text-xs text-muted-foreground">
+									Souhaitez-vous ajouter un motif pour ce retard ?
+								</span>
+								<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="cursor-pointer"
+										onClick={() => setShowLateReasonForm(true)}
+									>
+										Ajouter un motif
+									</Button>
+							</div>
+						)}
+						{showLateReasonForm && (
+							<div className="space-y-2">
+								<Textarea
+										value={lateReason}
+										onChange={(e) => setLateReason(e.target.value)}
+										rows={3}
+										placeholder="Ex : Problème de transport, rendez-vous médical..."
+									/>
+								<div className="flex flex-wrap gap-2 justify-end">
+									<Button
+											type="button"
+											size="sm"
+											className="cursor-pointer"
+											disabled={isSavingLateReason}
+											onClick={handleSaveLateReason}
+										>
+											{isSavingLateReason ? "Enregistrement..." : "Enregistrer le motif"}
+										</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="cursor-pointer"
+											onClick={() => setShowLateReasonForm(false)}
+										>
+											Plus tard
+										</Button>
+									</div>
+							</div>
+						)}
+					</div>
+				)}
+			</DialogContent>
+		</Dialog>
 
 		<Card className="border border-primary/30 bg-card rounded-xl shadow-md">
 		<CardHeader>
@@ -441,7 +550,7 @@ export default function EmployeeDashboardClient({
 				{primaryCtaLabel}
 			</Button>
 			<p className="text-xs text-muted-foreground text-center">
-				{currentTime.toLocaleTimeString("fr-FR")}
+				{hasMounted ? currentTime.toLocaleTimeString("fr-FR") : ""}
 			</p>
 			</div>
 		</CardContent>
@@ -510,7 +619,7 @@ export default function EmployeeDashboardClient({
 					: "Terminer Pause"}
 			</Button>
 			<p className="mt-2 text-center text-sm text-muted-foreground">
-				{currentTime.toLocaleTimeString("fr-FR")}
+				{hasMounted ? currentTime.toLocaleTimeString("fr-FR") : ""}
 			</p>
 			</CardContent>
 		</Card>

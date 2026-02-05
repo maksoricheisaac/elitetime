@@ -6,7 +6,11 @@ import { requireNavigationAccessById } from '@/lib/navigation-guard';
 import { getUserPermissions } from '@/lib/security/rbac';
 import { Prisma } from '@/generated/prisma/client';
 
-function resolveRange(searchParams?: { from?: string; to?: string }) {
+export const dynamic = 'force-dynamic';
+
+type ReportsSearchParams = { from?: string; to?: string };
+
+function resolveRange(searchParams?: ReportsSearchParams) {
   const fromParam = searchParams?.from;
   const toParam = searchParams?.to;
 
@@ -28,7 +32,7 @@ function resolveRange(searchParams?: { from?: string; to?: string }) {
 export default async function AppReportsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ from?: string; to?: string }>;
+  searchParams?: ReportsSearchParams;
 }) {
   try {
     const auth = await requireNavigationAccessById('reports');
@@ -91,7 +95,7 @@ export default async function AppReportsPage({
 
       const teamIds = employees.map((u) => u.id);
 
-      const { fromDate, toDate } = resolveRange(await searchParams);
+      const { fromDate, toDate } = resolveRange(searchParams);
 
       const pointages = await prisma.pointage.findMany({
         where: {
@@ -139,27 +143,27 @@ export default async function AppReportsPage({
     }
 
     // Admin: rapports globaux sur tous les employés
-  const employees = await prisma.user.findMany({
-    where: {
-      role: 'employee',
-      status: 'active',
-    },
-    orderBy: { firstname: 'asc' },
-  });
+    const employees = await prisma.user.findMany({
+      where: {
+        role: 'employee',
+        status: 'active',
+      },
+      orderBy: { firstname: 'asc' },
+    });
 
-  if (employees.length === 0) {
-    const settings = await prisma.systemSettings.findFirst();
-    const overtimeThreshold = settings?.overtimeThreshold ?? 40;
-    return (
-      <ManagerReportsClient team={[]} pointages={[]} breaks={[]} overtimeThreshold={overtimeThreshold} />
-    );
-  }
+    if (employees.length === 0) {
+      const settings = await prisma.systemSettings.findFirst();
+      const overtimeThreshold = settings?.overtimeThreshold ?? 40;
+      return (
+        <ManagerReportsClient team={[]} pointages={[]} breaks={[]} overtimeThreshold={overtimeThreshold} />
+      );
+    }
 
-  const teamIds = employees.map((u) => u.id);
+    const teamIds = employees.map((u) => u.id);
 
-  const { fromDate, toDate } = resolveRange(await searchParams);
+    const { fromDate, toDate } = resolveRange(searchParams);
 
-  const pointages = await prisma.pointage.findMany({
+    const pointages = await prisma.pointage.findMany({
     where: {
       userId: { in: teamIds },
       date: {
@@ -180,28 +184,28 @@ export default async function AppReportsPage({
     orderBy: { date: 'desc' },
   });
 
-  const breaks = await prisma.break.findMany({
-    where: {
-      userId: { in: teamIds },
-      date: {
-        gte: fromDate,
-        lte: toDate,
+    const breaks = await prisma.break.findMany({
+      where: {
+        userId: { in: teamIds },
+        date: {
+          gte: fromDate,
+          lte: toDate,
+        },
       },
-    },
-    orderBy: { date: 'desc' },
-  });
+      orderBy: { date: 'desc' },
+    });
 
-  const settings = await prisma.systemSettings.findFirst();
-  const overtimeThreshold = settings?.overtimeThreshold ?? 40;
+    const settings = await prisma.systemSettings.findFirst();
+    const overtimeThreshold = settings?.overtimeThreshold ?? 40;
 
-  return (
-    <ManagerReportsClient
-      team={employees}
-      pointages={pointages}
-      breaks={breaks}
-      overtimeThreshold={overtimeThreshold}
-    />
-  );
+    return (
+      <ManagerReportsClient
+        team={employees}
+        pointages={pointages}
+        breaks={breaks}
+        overtimeThreshold={overtimeThreshold}
+      />
+    );
   } catch (error) {
     console.error('Erreur lors de l\'accès aux rapports:', error);
     redirect('/dashboard');

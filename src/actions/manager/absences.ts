@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
-import { requirePermission } from "@/lib/security/rbac";
+import { requireAnyPermission } from "@/lib/security/rbac";
 import { AbsenceStatus, AbsenceType } from "@/generated/prisma/enums";
 import { createActivityLog } from "@/actions/admin/logs";
 
 export async function approveAbsence(absenceId: string) {
-  const auth = await requirePermission("validate_absences")();
+  const auth = await requireAnyPermission(["validate_absences", "manage_leaves"])();
 
   const absence = await prisma.absence.update({
     where: { id: absenceId },
@@ -35,7 +35,7 @@ export async function approveAbsence(absenceId: string) {
 }
 
 export async function rejectAbsence(absenceId: string, comment?: string) {
-  const auth = await requirePermission("validate_absences")();
+  const auth = await requireAnyPermission(["validate_absences", "manage_leaves"])();
 
   const absence = await prisma.absence.update({
     where: { id: absenceId },
@@ -71,8 +71,23 @@ export async function createManagedLeave(params: {
   endDate: Date;
   reason: string;
 }) {
-  const auth = await requirePermission("validate_absences")();
+  const auth = await requireAnyPermission(["validate_absences", "manage_leaves"])();
   const { userId, startDate, endDate, reason } = params;
+
+  // Empêcher la création d'un congé qui se chevauche avec un autre congé non rejeté pour le même employé
+  const overlapping = await prisma.absence.findFirst({
+    where: {
+      userId,
+      type: AbsenceType.conge,
+      status: { not: AbsenceStatus.rejected },
+      startDate: { lte: endDate },
+      endDate: { gte: startDate },
+    },
+  });
+
+  if (overlapping) {
+    throw new Error("Cet employé a déjà un congé qui chevauche cette période.");
+  }
 
   const absence = await prisma.absence.create({
     data: {
@@ -111,8 +126,33 @@ export async function updateManagedLeave(params: {
   endDate: Date;
   reason: string;
 }) {
-  const auth = await requirePermission("validate_absences")();
+  const auth = await requireAnyPermission(["validate_absences", "manage_leaves"])();
   const { id, startDate, endDate, reason } = params;
+
+  // Récupérer le congé existant pour connaître l'employé concerné
+  const existing = await prisma.absence.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    throw new Error("Congé introuvable");
+  }
+
+  // Empêcher une mise à jour vers une période qui se chevauche avec un autre congé non rejeté du même employé
+  const overlapping = await prisma.absence.findFirst({
+    where: {
+      id: { not: id },
+      userId: existing.userId,
+      type: AbsenceType.conge,
+      status: { not: AbsenceStatus.rejected },
+      startDate: { lte: endDate },
+      endDate: { gte: startDate },
+    },
+  });
+
+  if (overlapping) {
+    throw new Error("Cet employé a déjà un autre congé qui chevauche cette période.");
+  }
 
   const absence = await prisma.absence.update({
     where: { id },
@@ -144,7 +184,7 @@ export async function updateManagedLeave(params: {
 }
 
 export async function deleteManagedLeave(absenceId: string) {
-  const auth = await requirePermission("validate_absences")();
+  const auth = await requireAnyPermission(["validate_absences", "manage_leaves"])();
 
   const absence = await prisma.absence.delete({
     where: { id: absenceId },

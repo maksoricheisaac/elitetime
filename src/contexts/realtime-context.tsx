@@ -9,6 +9,14 @@ export type LateAlertPayload = {
   userId: string;
   userName: string;
   timestamp: string;
+  /** Durée du retard en minutes (si disponible) */
+  delayMinutes?: number | null;
+  /** Durée du retard formatée (ex: "15 min", "1h30min") */
+  delayLabel?: string | null;
+  /** Heure de début de travail prévue (HH:mm) si connue */
+  workStartTime?: string | null;
+  /** Heure réelle de pointage d'entrée (HH:mm) si connue */
+  entryTime?: string | null;
 };
 
 export type PointageReminderPayload = {

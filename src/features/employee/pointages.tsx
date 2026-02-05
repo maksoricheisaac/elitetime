@@ -105,6 +105,20 @@ const pointagesColumns: ColumnDef<Pointage>[] = [
     ),
     cell: ({ row }) => getStatusBadge(row.original.status),
   },
+  {
+    accessorKey: "lateReason",
+    header: () => (
+      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        Motif
+      </span>
+    ),
+    cell: ({ row }) => {
+      const reason = row.original.lateReason ?? null;
+      if (!reason) return <span className="text-xs text-muted-foreground">-</span>;
+      const truncated = reason.length > 80 ? `${reason.slice(0, 77)}…` : reason;
+      return <span className="text-xs">{truncated}</span>;
+    },
+  },
 ];
 
 export default function EmployeePointagesClient({ pointages }: EmployeePointagesClientProps) {

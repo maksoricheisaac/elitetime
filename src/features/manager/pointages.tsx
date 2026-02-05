@@ -56,7 +56,7 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
 
   const searchParams = useSearchParams();
 
-  const { from, to, days, rangeLabel } = useMemo(() => {
+  const { from, days, rangeLabel } = useMemo(() => {
     const fromParam = searchParams?.get("from") ?? undefined;
     const toParam = searchParams?.get("to") ?? undefined;
 
@@ -89,7 +89,7 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       label = `${fromLabel} – ${toLabel}`;
     }
 
-    return { from: fromDate, to: toDate, days: Math.max(1, computedDays), rangeLabel: label };
+    return { from: fromDate, days: Math.max(1, computedDays), rangeLabel: label };
   }, [searchParams]);
 
   const todayKey = useMemo(() => {
@@ -421,6 +421,16 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       cell: ({ row }) => <span>{row.original.pointage?.exitTime || "-"}</span>,
     },
     {
+      accessorKey: "lateReason",
+      header: () => <span>Motif</span>,
+      cell: ({ row }) => {
+        const reason = row.original.pointage?.lateReason;
+        if (!reason) return <span>-</span>;
+        const truncated = reason.length > 80 ? `${reason.slice(0, 77)}…` : reason;
+        return <span className="text-xs text-muted-foreground">{truncated}</span>;
+      },
+    },
+    {
       id: "breakStart",
       header: () => <span>Début pause</span>,
       cell: ({ row }) => {
@@ -467,7 +477,7 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
         if (totalMinutes <= 0) {
           return <span>-</span>;
         }
-        return <span>{totalMinutes} min</span>;
+        return <span>{formatMinutesHuman(totalMinutes)}</span>;
       },
     },
     {
@@ -669,22 +679,25 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
             </div>
 
             {departments.length > 1 && (
-              <Select
-                value={departmentFilter}
-                onValueChange={setDepartmentFilter}
-              >
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="Filtrer par département" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les départements</SelectItem>
-                  {departments.map((dept) => (
-                    <SelectItem key={dept} value={dept}>
-                      {dept}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">Rechercher par département</Label>
+                <Select
+                  value={departmentFilter}
+                  onValueChange={setDepartmentFilter}
+                >
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filtrer par département" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les départements</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept} value={dept}>
+                        {dept}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             )}
           
           </div>

@@ -357,3 +357,50 @@ export async function endEmployeePointage(userId: string) {
 
   return updated;
 }
+
+export async function updateEmployeeLateReason(userId: string, reason: string) {
+  if (!userId) return null;
+
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayEnd = new Date(todayStart);
+  todayEnd.setHours(23, 59, 59, 999);
+
+  const pointage = await prisma.pointage.findFirst({
+    where: {
+      userId,
+      status: PointageStatus.late,
+      date: {
+        gte: todayStart,
+        lte: todayEnd,
+      },
+    },
+    orderBy: {
+      date: "desc",
+    },
+  });
+
+  if (!pointage) {
+    return null;
+  }
+
+  const trimmed = reason.trim();
+
+  const updated = await prisma.pointage.update({
+    where: { id: pointage.id },
+    data: {
+      lateReason: trimmed.length > 0 ? trimmed : null,
+    },
+  });
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (user) {
+    const displayName = `${user.firstname || ""} ${user.lastname || ""}`.trim() || user.username;
+    const details = trimmed.length > 0
+      ? `${displayName} a renseigné un motif de retard: "${trimmed}".`
+      : `${displayName} a effacé le motif de retard.`;
+    await createActivityLog(userId, "Motif de retard", details, "pointage");
+  }
+
+  return updated;
+}

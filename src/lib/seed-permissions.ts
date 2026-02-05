@@ -24,6 +24,7 @@ const PERMISSIONS = [
   { name: "view_all_absences", description: "Voir toutes les absences", category: "absences" },
   { name: "view_team_absences", description: "Voir les absences de son équipe", category: "absences" },
   { name: "validate_absences", description: "Valider les demandes d'absence", category: "absences" },
+  { name: "manage_leaves", description: "Gérer les congés (création, modification, suppression)", category: "absences" },
   
   // Logs / audit
   { name: "view_logs", description: "Voir les logs système (activités, connexions, etc.)", category: "logs" },

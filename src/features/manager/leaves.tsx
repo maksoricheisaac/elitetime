@@ -19,6 +19,20 @@ import {
   deleteManagedLeave,
 } from "@/actions/manager/absences";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { CalendarRange, CheckCircle2, AlertCircle, Building2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface LeaveManagementClientProps {
   team: User[];
@@ -44,6 +58,16 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
   const [editLeaveEnd, setEditLeaveEnd] = useState<Date | undefined>();
   const [editLeaveReason, setEditLeaveReason] = useState<string>("");
 
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+
+  const resetEditState = () => {
+    setEditingLeaveId(null);
+    setEditLeaveStart(undefined);
+    setEditLeaveEnd(undefined);
+    setEditLeaveReason("");
+  };
+
   const departments = useMemo(
     () =>
       Array.from(
@@ -55,6 +79,56 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
       ),
     [team],
   );
+
+  const leaveStats = useMemo(() => {
+    const total = absences.length;
+    let approved = 0;
+    let rejected = 0;
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setHours(23, 59, 59, 999);
+    let activeToday = 0;
+
+    const leavesPerDepartment: Record<string, number> = {};
+
+    for (const absence of absences) {
+      if (absence.status === "approved") approved += 1;
+      else if (absence.status === "rejected") rejected += 1;
+
+      const start = new Date(absence.startDate as unknown as string);
+      const end = new Date(absence.endDate as unknown as string);
+      if (start <= todayEnd && end >= todayStart) {
+        activeToday += 1;
+      }
+
+      const dept = absence.user.department || "Non renseigné";
+      leavesPerDepartment[dept] = (leavesPerDepartment[dept] ?? 0) + 1;
+    }
+
+    const departmentsWithLeaves = Object.keys(leavesPerDepartment).length;
+
+    let topDepartment: string | null = null;
+    let topDepartmentCount = 0;
+
+    for (const [dept, count] of Object.entries(leavesPerDepartment)) {
+      if (count > topDepartmentCount) {
+        topDepartment = dept;
+        topDepartmentCount = count;
+      }
+    }
+
+    return {
+      total,
+      approved,
+      rejected,
+      activeToday,
+      departmentsWithLeaves,
+      topDepartment,
+      topDepartmentCount,
+    };
+  }, [absences]);
 
   const filteredAbsences = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -171,12 +245,10 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
           setEditLeaveStart(new Date(a.startDate as unknown as string));
           setEditLeaveEnd(new Date(a.endDate as unknown as string));
           setEditLeaveReason(a.reason);
+          setIsEditDialogOpen(true);
         };
 
         const handleDelete = () => {
-          const confirmed = window.confirm("Confirmer la suppression de ce congé ?");
-          if (!confirmed) return;
-
           startTransition(async () => {
             try {
               await deleteManagedLeave(a.id);
@@ -220,15 +292,33 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
             >
               Modifier
             </Button>
-            <Button
-              className="cursor-pointer"
-              variant="destructive"
-              size="sm"
-              onClick={handleDelete}
-              disabled={isPending}
-            >
-              Supprimer
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  className="cursor-pointer"
+                  variant="destructive"
+                  size="sm"
+                  disabled={isPending}
+                >
+                  Supprimer
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Supprimer ce congé ?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Cette action est irréversible. Le congé sera définitivement supprimé et ne sera plus pris en compte
+                    dans les rapports.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Annuler</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} disabled={isPending}>
+                    Supprimer
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         );
       },
@@ -249,6 +339,23 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
       return;
     }
 
+    const hasOverlappingLeave = absences.some((absence) => {
+      if (absence.user.id !== newLeaveUserId) return false;
+      if (absence.status === "rejected") return false;
+
+      const existingStart = new Date(absence.startDate as unknown as string);
+      const existingEnd = new Date(absence.endDate as unknown as string);
+
+      return existingStart <= end && existingEnd >= start;
+    });
+
+    if (hasOverlappingLeave) {
+      showError(
+        "Cet employé a déjà un congé qui chevauche cette période. Modifiez le congé existant plutôt que d'en créer un nouveau.",
+      );
+      return;
+    }
+
     startTransition(async () => {
       try {
         await createManagedLeave({
@@ -261,9 +368,14 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
         setNewLeaveStart(undefined);
         setNewLeaveEnd(undefined);
         showSuccess("Congé créé et approuvé.");
+        setIsCreateDialogOpen(false);
       } catch (error) {
         console.error(error);
-        showError("Impossible de créer ce congé pour le moment.");
+        if (error instanceof Error && error.message.includes("chevauche")) {
+          showError(error.message);
+        } else {
+          showError("Impossible de créer ce congé pour le moment.");
+        }
       }
     });
   };
@@ -282,63 +394,153 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Créer un congé</CardTitle>
-          <CardDescription>Ajoutez un congé directement pour un employé (statut approuvé par défaut).</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-4">
-          <div className="space-y-2">
-            <Label>Employé</Label>
-            <Select value={newLeaveUserId} onValueChange={setNewLeaveUserId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un employé" />
-              </SelectTrigger>
-              <SelectContent>
-                {team.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.id}>
-                    {employee.firstname} {employee.lastname}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="border border-border/80 bg-card/90 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total congés</CardTitle>
+            <CalendarRange className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{leaveStats.total}</div>
+            <p className="text-xs text-muted-foreground">Toutes les demandes enregistrées</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border/80 bg-card/90 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Congés par département</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{leaveStats.departmentsWithLeaves}</div>
+            <p className="text-xs text-muted-foreground">
+              {leaveStats.departmentsWithLeaves === 0
+                ? "Aucun département avec des congés"
+                : leaveStats.topDepartment
+                  ? `Top : ${leaveStats.topDepartment} (${leaveStats.topDepartmentCount} congés)`
+                  : "Répartition des congés par département"}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border/80 bg-card/90 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Approuvés</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600">{leaveStats.approved}</div>
+            <p className="text-xs text-muted-foreground">Congés validés</p>
+          </CardContent>
+        </Card>
+
+        <Card className="border border-border/80 bg-card/90 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">En cours aujourd&apos;hui</CardTitle>
+            <AlertCircle className="h-4 w-4 text-sky-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-sky-600">{leaveStats.activeToday}</div>
+            <p className="text-xs text-muted-foreground">Employés actuellement en congé</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ajouter un congé</DialogTitle>
+            <DialogDescription>
+              Renseignez les informations du congé à créer pour l&apos;employé sélectionné.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Ligne 1 : Employé */}
+            <div className="space-y-2">
+              <Label>Employé</Label>
+              <Select value={newLeaveUserId} onValueChange={setNewLeaveUserId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Sélectionner un employé" />
+                </SelectTrigger>
+                <SelectContent>
+                  {team.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id}>
+                      {employee.firstname} {employee.lastname}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Ligne 2 : Dates début / fin */}
+            <div className="flex gap-5">
+              <div className="flex-1 space-y-2">
+                <Label>Début</Label>
+                <DatePicker
+                  value={newLeaveStart}
+                  onChange={setNewLeaveStart}
+                  placeholder="Date de début"
+                />
+              </div>
+
+              <div className="flex-1 space-y-2">
+                <Label>Fin</Label>
+                <DatePicker
+                  value={newLeaveEnd}
+                  onChange={setNewLeaveEnd}
+                  placeholder="Date de fin"
+                />
+              </div>
+            </div>
+
+            {/* Ligne 3 : Raison */}
+            <div className="space-y-2">
+              <Label>Raison</Label>
+              <Textarea
+                placeholder="Ex : Congé annuel, raison familiale, etc."
+                value={newLeaveReason}
+                onChange={(e) => setNewLeaveReason(e.target.value)}
+                rows={4}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label>Début</Label>
-            <DatePicker
-              value={newLeaveStart}
-              onChange={setNewLeaveStart}
-              placeholder="Date de début"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Fin</Label>
-            <DatePicker
-              value={newLeaveEnd}
-              onChange={setNewLeaveEnd}
-              placeholder="Date de fin"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label>Raison</Label>
-            <Input
-              placeholder="Ex: Congé annuel"
-              value={newLeaveReason}
-              onChange={(e) => setNewLeaveReason(e.target.value)}
-            />
-          </div>
-          <div className="md:col-span-4 flex justify-end">
-            <Button className="cursor-pointer" onClick={handleCreateLeave} disabled={isPending}>
+
+          {/* Actions */}
+          <div className="mt-4 flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCreateDialogOpen(false)}
+            >
+              Annuler
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCreateLeave}
+              disabled={isPending}
+            >
               Créer le congé
             </Button>
           </div>
-        </CardContent>
-      </Card>
+        </DialogContent>
+      </Dialog>
+
 
       <Card>
-        <CardHeader>
-          <CardTitle>Liste des congés</CardTitle>
-          <CardDescription>Filtrez et validez les demandes de congés de l&apos;équipe.</CardDescription>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <CardTitle>Liste des congés</CardTitle>
+            <CardDescription>Filtrez et validez les demandes de congés de l&apos;équipe.</CardDescription>
+          </div>
+          <Button
+              type="button"
+              className="cursor-pointer"
+              size="sm"
+              onClick={() => setIsCreateDialogOpen(true)}
+            >
+              Ajouter un congé
+            </Button>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap items-center gap-4">
@@ -389,98 +591,101 @@ export default function LeaveManagementClient({ team, absences }: LeaveManagemen
 
           <DataTable columns={columns} data={filteredAbsences} />
 
-          {editingLeaveId && editingLeave && (
-            <div className="mt-6 border-t pt-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium">Modifier le congé sélectionné</h3>
-                  <p className="text-xs text-muted-foreground">
-                    {editingLeave.user.firstname} {editingLeave.user.lastname} - du{' '}
-                    {new Date(editingLeave.startDate as unknown as string).toLocaleDateString('fr-FR')} au{' '}
-                    {new Date(editingLeave.endDate as unknown as string).toLocaleDateString('fr-FR')}
-                  </p>
+          {editingLeave && (
+            <Dialog
+              open={isEditDialogOpen}
+              onOpenChange={(open) => {
+                setIsEditDialogOpen(open);
+                if (!open) {
+                  resetEditState();
+                }
+              }}
+            >
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Modifier le congé</DialogTitle>
+                  <DialogDescription>
+                    {editingLeave.user.firstname} {editingLeave.user.lastname} - du{" "}
+                    {new Date(editingLeave.startDate as unknown as string).toLocaleDateString("fr-FR")} au{" "}
+                    {new Date(editingLeave.endDate as unknown as string).toLocaleDateString("fr-FR")}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Début</Label>
+                    <DatePicker
+                      value={editLeaveStart}
+                      onChange={setEditLeaveStart}
+                      placeholder="Date de début"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fin</Label>
+                    <DatePicker
+                      value={editLeaveEnd}
+                      onChange={setEditLeaveEnd}
+                      placeholder="Date de fin"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Raison</Label>
+                    <Input
+                      placeholder="Mettre à jour la raison"
+                      value={editLeaveReason}
+                      onChange={(e) => setEditLeaveReason(e.target.value)}
+                    />
+                  </div>
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="cursor-pointer"
-                  onClick={() => {
-                    setEditingLeaveId(null);
-                    setEditLeaveStart(undefined);
-                    setEditLeaveEnd(undefined);
-                    setEditLeaveReason("");
-                  }}
-                >
-                  Annuler
-                </Button>
-              </div>
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="space-y-2">
-                  <Label>Début</Label>
-                  <DatePicker
-                    value={editLeaveStart}
-                    onChange={setEditLeaveStart}
-                    placeholder="Date de début"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Fin</Label>
-                  <DatePicker
-                    value={editLeaveEnd}
-                    onChange={setEditLeaveEnd}
-                    placeholder="Date de fin"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label>Raison</Label>
-                  <Input
-                    placeholder="Mettre à jour la raison"
-                    value={editLeaveReason}
-                    onChange={(e) => setEditLeaveReason(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  className="cursor-pointer"
-                  disabled={isPending}
-                  onClick={() => {
-                    if (!editingLeaveId || !editLeaveStart || !editLeaveEnd || !editLeaveReason.trim()) {
-                      showError("Veuillez renseigner toutes les informations du congé.");
-                      return;
-                    }
-
-                    if (editLeaveEnd < editLeaveStart) {
-                      showError("Période de congé invalide.");
-                      return;
-                    }
-
-                    startTransition(async () => {
-                      try {
-                        await updateManagedLeave({
-                          id: editingLeaveId,
-                          startDate: editLeaveStart,
-                          endDate: editLeaveEnd,
-                          reason: editLeaveReason.trim(),
-                        });
-                        showSuccess("Congé mis à jour.");
-                        setEditingLeaveId(null);
-                        setEditLeaveStart(undefined);
-                        setEditLeaveEnd(undefined);
-                        setEditLeaveReason("");
-                      } catch (error) {
-                        console.error(error);
-                        showError("Impossible de mettre à jour ce congé pour le moment.");
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="cursor-pointer"
+                    onClick={() => {
+                      setIsEditDialogOpen(false);
+                      resetEditState();
+                    }}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    type="button"
+                    className="cursor-pointer"
+                    disabled={isPending}
+                    onClick={() => {
+                      if (!editingLeaveId || !editLeaveStart || !editLeaveEnd || !editLeaveReason.trim()) {
+                        showError("Veuillez renseigner toutes les informations du congé.");
+                        return;
                       }
-                    });
-                  }}
-                >
-                  Enregistrer les modifications
-                </Button>
-              </div>
-            </div>
+
+                      if (editLeaveEnd < editLeaveStart) {
+                        showError("Période de congé invalide.");
+                        return;
+                      }
+
+                      startTransition(async () => {
+                        try {
+                          await updateManagedLeave({
+                            id: editingLeaveId,
+                            startDate: editLeaveStart,
+                            endDate: editLeaveEnd,
+                            reason: editLeaveReason.trim(),
+                          });
+                          showSuccess("Congé mis à jour.");
+                          setIsEditDialogOpen(false);
+                          resetEditState();
+                        } catch (error) {
+                          console.error(error);
+                          showError("Impossible de mettre à jour ce congé pour le moment.");
+                        }
+                      });
+                    }}
+                  >
+                    Enregistrer les modifications
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
         </CardContent>
       </Card>

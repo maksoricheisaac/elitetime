@@ -14,6 +14,7 @@ import type { User, Pointage, Break as BreakModel } from "@/generated/prisma/cli
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatMinutesHuman } from "@/lib/time-format";
+import type { PDFPage } from "pdf-lib";
 
 interface ManagerReportsClientProps {
   team: User[];
@@ -359,7 +360,7 @@ try {
   /* ==============================
      HEADER COMMUN
   ============================== */
-  const drawHeader = (page, title: string, subtitle?: string) => {
+  const drawHeader = (page: PDFPage, title: string, subtitle?: string) => {
     page.drawRectangle({
       x: 0,
       y: PAGE_HEIGHT - 120,
@@ -398,7 +399,7 @@ try {
   /* ==============================
      FOOTER COMMUN
   ============================== */
-  const drawFooter = (page) => {
+  const drawFooter = (page: PDFPage) => {
     page.drawRectangle({
       x: 0,
       y: 0,
@@ -555,7 +556,7 @@ try {
      EXPORT
   ============================== */
   const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes], { type: "application/pdf" });
+  const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");

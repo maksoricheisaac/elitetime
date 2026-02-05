@@ -9,8 +9,8 @@ export const UserNav = () => {
     const { user, logout } = useAuth();
 
     return (
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+        <DropdownMenu >
+            <DropdownMenuTrigger asChild suppressHydrationWarning>
               <Button variant="ghost" className="relative h-11 rounded-full px-3 hover:bg-primary/5 transition-all cursor-pointer">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-9 w-9 ring-2 ring-white">

@@ -352,6 +352,29 @@ export function requirePermission(permissionName: string) {
   };
 }
 
+// Middleware pour vérifier qu'au moins une permission parmi une liste est présente
+export function requireAnyPermission(permissionNames: string[]) {
+  return async (): Promise<AuthContext> => {
+    const auth = await getAuthenticatedUser();
+
+    // Les admins ont toutes les permissions
+    if (auth.user.role === "admin") {
+      return auth;
+    }
+
+    for (const name of permissionNames) {
+      const hasPermission = await hasUserPermission(auth.user.id, name);
+      if (hasPermission) {
+        return auth;
+      }
+    }
+
+    throw new AuthorizationError(
+      `Une des permissions suivantes est requise : ${permissionNames.join(", ")}`,
+    );
+  };
+}
+
 // Middleware pour vérifier les permissions par catégorie
 export function requirePermissionInCategory(category: string) {
   return async (): Promise<AuthContext> => {

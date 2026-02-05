@@ -44,6 +44,7 @@ model Pointage {
   createdAt          DateTime            @default(now())
   correctionRequests CorrectionRequest[]
   user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lateReason         String?
 }
 
 model Break {

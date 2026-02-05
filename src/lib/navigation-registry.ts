@@ -97,7 +97,7 @@ export const navigationRegistry: NavigationGroup[] = [
         icon: CheckCircle,
         label: 'Congés',
         allowedRoles: ['admin', 'manager', 'employee', 'team_lead'],
-        requiredPermissions: ['validate_absences'],
+        requiredPermissions: ['validate_absences', 'manage_leaves'],
       },
     ],
   },

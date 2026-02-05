@@ -393,7 +393,7 @@ export default function EmployeesTable({
         return (
           <div className="flex justify-end gap-2">
             <Dialog>
-              <DialogTrigger asChild>
+              <DialogTrigger asChild suppressHydrationWarning>
                 <Button className="cursor-pointer" type="button" variant="outline" size="sm">
                   <Pencil className="h-3 w-3" />
                   <span>Modifier</span>
