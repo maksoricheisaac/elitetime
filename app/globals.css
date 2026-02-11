@@ -4,56 +4,73 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f5f5f7;
-  --foreground: #020617;
+  /* Palette claire très douce, orientée gris neutres avec accent désaturé */
+  --background: #f5f5f6; /* gris clair, moins agressif que le blanc pur */
+  --foreground: #111827; /* texte gris anthracite */
   --radius: 0.5rem;
   --card: #ffffff;
-  --card-foreground: #020617;
+  --card-foreground: #111827;
   --popover: #ffffff;
-  --popover-foreground: #020617;
-  --primary: #0891b2;
+  --popover-foreground: #111827;
+  /* Accent principal : bleu proche du logo, légèrement assombri pour que le logo reste plus vif */
+  --primary: #72a7b8; /* bleu/cyan inspiré du logo ELITE TIME */
   --primary-foreground: #f9fafb;
-  --secondary: #e5e7eb;
+  /* Surfaces secondaires (fond des sections, tableaux, etc.) */
+  --secondary: #e5e7eb; /* gris 200 */
   --secondary-foreground: #111827;
+  /* Zones muted (texte secondaire, placeholders) */
   --muted: #e5e7eb;
   --muted-foreground: #6b7280;
-  --accent: #cffafe;
-  --accent-foreground: #0e7490;
+  /* Accent léger pour hover/selection, quasi gris/bleuté très soft */
+  --accent: #e3e8f3; /* gris bleuté très pâle */
+  --accent-foreground: #1f2937;
+  /* État destructif (garde un rouge mais pas fluo) */
   --destructive: #b91c1c;
-  --border: #e5e7eb;
-  --input: #e5e7eb;
-  --ring: #0891b2;
-  --chart-1: #0891b2;
-  --chart-2: #0f766e;
-  --chart-3: #9333ea;
-  --chart-4: #f97316;
-  --chart-5: #22c55e;
+  /* Contours et inputs */
+  --border: #d1d5db;
+  --input: #d1d5db;
+  --ring: #0b84c6;
+  /* Couleurs de graphes, légèrement désaturées autour du bleu du logo */
+  --chart-1: #0b84c6;
+  --chart-2: #1d9b6e;
+  --chart-3: #f59e54;
+  --chart-4: #d4a72c;
+  --chart-5: #9b6bcb;
 }
 
 .dark {
+  /* Fond très sombre, neutre, sans halo bleu agressif */
   --background: #020617; /* slate-950 */
-  --foreground: #e5e7eb; /* slate-200 */
-  --card: #020617; /* couche intermédiaire légèrement plus claire que le fond pur */
+  --foreground: #e5e7eb; /* texte gris clair */
+  /* Surfaces / cartes légèrement au-dessus du fond */
+  --card: #020617;
   --card-foreground: #e5e7eb;
   --popover: #020617;
   --popover-foreground: #e5e7eb;
-  --primary: #2563eb; /* blue-600 pour un accent moins "cyan" */
-  --primary-foreground: #0b1120; /* texte sombre sur boutons bleus */
-  --secondary: #020617; /* cartes secondaires très sombres */
+  /* Accent principal en dark : même bleu que le logo mais légèrement atténué par le fond sombre */
+  --primary: #7abadf;
+  --primary-foreground: #f9fafb;
+  /* Surfaces secondaires */
+  --secondary: #020617;
   --secondary-foreground: #e5e7eb;
-  --muted: #020617; /* sections atténuées mais intégrées au fond */
-  --muted-foreground: #9ca3af; /* texte secondaire lisible */
-  --accent: #0f172a; /* léger relief pour hover / accents */
+  /* Zones muted */
+  --muted: #020617;
+  --muted-foreground: #9ca3af;
+  /* Accent pour hover / focus : gris foncé neutre */
+  --accent: #0f172a; /* slate-900 */
   --accent-foreground: #e5e7eb;
-  --destructive: #f97373; /* rouge plus visible sur fond sombre */
-  --border: #1e293b; /* slate-800, plus visible que noir pur */
+  /* État destructif */
+  --destructive: #f97373;
+  /* Contours / inputs / focus */
+  --border: #1e293b;
   --input: #1e293b;
-  --ring: #2563eb;
-  --chart-1: #2563eb;
-  --chart-2: #22c55e;
-  --chart-3: #f97316;
-  --chart-4: #eab308;
-  --chart-5: #a855f7;
+  --ring: #1a8fd1;
+  /* Graphes sur fond sombre, centrés autour du bleu du logo */
+  --chart-1: #1a8fd1;
+  --chart-2: #22b36a;
+  --chart-3: #f59e54;
+  --chart-4: #d4a72c;
+  --chart-5: #9b6bcb;
 }
 
 @theme inline {
@@ -94,11 +111,8 @@ body {
 }
 
 body.dark {
-  /* Légère mise en valeur du fond en dark mode sur toute l'app */
-  background:
-    radial-gradient(circle at top left, rgba(15, 23, 42, 0.85), transparent 55%),
-    radial-gradient(circle at bottom right, rgba(8, 47, 73, 0.7), transparent 55%),
-    var(--background);
+  /* Fond sombre simple et uniforme pour reposer les yeux */
+  background: var(--background);
 }
 
 @layer base {

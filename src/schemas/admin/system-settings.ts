@@ -17,6 +17,7 @@ export const SystemSettingsSchema = z.object({
   ldapSyncEnabled: z.boolean(),
   ldapSyncIntervalMinutes: z.number().int().min(1).max(1440),
   ldapLastSyncAt: z.string().datetime().nullable().optional(),
+  dailyReportMode: z.enum(["TODAY", "YESTERDAY"]),
 });
 
 export type SystemSettingsData = z.infer<typeof SystemSettingsSchema>;

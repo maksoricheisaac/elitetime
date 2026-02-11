@@ -13,10 +13,18 @@ export interface EmployeePointageDetailRow {
   duration: number | null;
   status: string | null;
   pauseMinutes: number;
+  lateMinutes?: number;
 }
 
 interface EmployeePointagesDetailTableProps {
   rows: EmployeePointageDetailRow[];
+}
+
+function formatMinutesHHMM(totalMinutes: number): string {
+  const minutes = Math.max(0, Math.floor(totalMinutes));
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
 }
 
 const columns: ColumnDef<EmployeePointageDetailRow>[] = [
@@ -47,6 +55,17 @@ const columns: ColumnDef<EmployeePointageDetailRow>[] = [
         return <span>-</span>;
       }
       return <span>{formatMinutesHuman(duration)}</span>;
+    },
+  },
+  {
+    accessorKey: "lateMinutes",
+    header: () => <span>Retard</span>,
+    cell: ({ row }) => {
+      const late = row.original.lateMinutes ?? 0;
+      if (!late || late <= 0) {
+        return <span>-</span>;
+      }
+      return <span className="text-destructive font-medium">{formatMinutesHHMM(late)}</span>;
     },
   },
   {

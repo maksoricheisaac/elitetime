@@ -94,10 +94,25 @@ export default async function EmployeeReportDetailPage({ params, searchParams }:
     breaksByDay.set(key, current + (b.duration ?? 0));
   }
 
+  // Heure de début de travail pour calculer les retards
+  const workStartTime = settings?.workStartTime ?? "08:45";
+  const [startHour, startMinute] = workStartTime.split(":").map(Number);
+
   const rows: EmployeePointageDetailRow[] = pointages.map((p) => {
     const d = new Date(p.date as unknown as string);
     const key = d.toISOString().split("T")[0];
     const pauseMinutes = breaksByDay.get(key) ?? 0;
+
+    let lateMinutes = 0;
+    if (p.entryTime) {
+      const [eh, em] = p.entryTime.split(":").map(Number);
+      if (!Number.isNaN(eh) && !Number.isNaN(em) && !Number.isNaN(startHour) && !Number.isNaN(startMinute)) {
+        const diff = (eh * 60 + em) - (startHour * 60 + startMinute);
+        if (diff > 0) {
+          lateMinutes = diff;
+        }
+      }
+    }
 
     return {
       id: p.id,
@@ -107,6 +122,7 @@ export default async function EmployeeReportDetailPage({ params, searchParams }:
       duration: p.duration,
       status: p.status,
       pauseMinutes,
+      lateMinutes,
     };
   });
 

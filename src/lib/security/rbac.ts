@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import prisma from "@/lib/prisma";
 import { SESSION_COOKIE_NAME } from "@/lib/session";
 import { validateAndSanitize, UserIdSchema } from "@/lib/validation/schemas";
@@ -61,7 +62,8 @@ export async function getAuthenticatedUser(): Promise<AuthContext> {
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
   if (!sessionToken) {
-    throw new AuthenticationError("Aucun token de session");
+    // Pas de session en cookie : rediriger proprement vers la page de connexion
+    redirect("/login");
   }
 
   // Vérifier la session en base de données
@@ -84,20 +86,42 @@ export async function getAuthenticatedUser(): Promise<AuthContext> {
   });
 
   if (!session) {
-    throw new AuthenticationError("Session invalide");
+    // Session introuvable en base: tenter de nettoyer côté base puis rediriger vers /login
+    try {
+      await prisma.session.deleteMany({ where: { sessionToken } });
+    } catch {
+      // ignorer les erreurs de nettoyage
+    }
+
+    redirect("/login");
   }
 
   // Vérifier si la session n'est pas expirée
   if (session.expiresAt < new Date()) {
-    await prisma.session.delete({
-      where: { id: session.id },
-    });
-    throw new AuthenticationError("Session expirée");
+    // Supprimer la session expirée côté base et rediriger vers /login
+    try {
+      await prisma.session.delete({
+        where: { id: session.id },
+      });
+    } catch {
+      // ignorer les erreurs de suppression
+    }
+
+    redirect("/login");
   }
 
   // Vérifier si l'utilisateur est actif
   if (session.user.status !== "active") {
-    throw new AuthenticationError("Utilisateur inactif");
+    // Utilisateur désactivé : invalider la session côté base et renvoyer vers /login
+    try {
+      await prisma.session.delete({
+        where: { id: session.id },
+      });
+    } catch {
+      // ignorer les erreurs de suppression
+    }
+
+    redirect("/login");
   }
 
   return {

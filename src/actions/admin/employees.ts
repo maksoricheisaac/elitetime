@@ -56,6 +56,7 @@ export async function syncEmployeesFromLdap() {
   const auth = await requireAdmin();
 
   let success = false;
+  let errorMessage: string | null = null;
 
   try {
     const { syncedCount } = await syncEmployeesFromLdapCore();
@@ -68,10 +69,11 @@ export async function syncEmployeesFromLdap() {
 
     success = true;
   } catch (error) {
+    errorMessage = error instanceof Error ? error.message : "Unknown error";
     await logSecurityEvent(
       auth.user.id,
       "LDAP_SYNC_EMPLOYEES_ERROR",
-      `Erreur lors de la synchronisation LDAP des employés: ${error instanceof Error ? error.message : "Unknown error"}`,
+      `Erreur lors de la synchronisation LDAP des employés: ${errorMessage}`,
     );
   }
 
@@ -79,7 +81,12 @@ export async function syncEmployeesFromLdap() {
   if (success) {
     redirect("/employees?synced=1");
   } else {
-    redirect("/employees?synced_error=1");
+    const params = new URLSearchParams({ synced_error: "1" });
+    if (errorMessage) {
+      params.set("synced_error_message", errorMessage);
+    }
+
+    redirect(`/employees?${params.toString()}`);
   }
 }
 

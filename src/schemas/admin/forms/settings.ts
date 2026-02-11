@@ -42,6 +42,7 @@ export const systemSettingsFormSchema = z.object({
     .int()
     .min(5, "Minimum 5 minutes")
     .max(1440, "Maximum 1440 minutes"),
+  dailyReportMode: z.enum(["TODAY", "YESTERDAY"]),
 });
 
 export type SystemSettingsFormInput = z.input<typeof systemSettingsFormSchema>;

@@ -32,7 +32,7 @@ function resolveRange(searchParams?: ReportsSearchParams) {
 export default async function AppReportsPage({
   searchParams,
 }: {
-  searchParams?: ReportsSearchParams;
+  searchParams?: Promise<ReportsSearchParams>;
 }) {
   try {
     const auth = await requireNavigationAccessById('reports');
@@ -95,7 +95,7 @@ export default async function AppReportsPage({
 
       const teamIds = employees.map((u) => u.id);
 
-      const { fromDate, toDate } = resolveRange(searchParams);
+      const { fromDate, toDate } = resolveRange(await searchParams);
 
       const pointages = await prisma.pointage.findMany({
         where: {
@@ -161,7 +161,7 @@ export default async function AppReportsPage({
 
     const teamIds = employees.map((u) => u.id);
 
-    const { fromDate, toDate } = resolveRange(searchParams);
+    const { fromDate, toDate } = resolveRange(await searchParams);
 
     const pointages = await prisma.pointage.findMany({
     where: {

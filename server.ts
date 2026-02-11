@@ -4,6 +4,7 @@ import next from "next";
 import { Server as SocketIOServer, type Socket } from "socket.io";
 import prisma from "./src/lib/prisma";
 import { syncEmployeesFromLdapCore } from "./src/lib/ldap-sync-employees";
+import { runScheduledEmailJob } from "./src/lib/scheduled-emails";
 
 interface LateAlertPayload {
   userId: string;
@@ -144,6 +145,64 @@ function scheduleDailyTask(hour: number, minute: number, taskName: string, fn: (
   }, delayMs);
 
   console.log(`[scheduler:${taskName}] scheduled at ${next.toLocaleString("fr-FR")}`);
+}
+
+function getMinuteKeyLocal(d: Date) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mi = String(d.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function startScheduledEmailJobsPolling() {
+  const lastRunByJobId = new Map<string, string>();
+
+  const tick = async () => {
+    const now = new Date();
+    const minuteKey = getMinuteKeyLocal(now);
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+
+    try {
+      const jobs = await prisma.scheduledEmailJob.findMany({
+        where: {
+          enabled: true,
+          hour,
+          minute,
+        },
+        select: {
+          id: true,
+          type: true,
+          weekday: true,
+        },
+      });
+
+      for (const job of jobs) {
+        if (job.type === "WEEKLY_REPORT" && (job.weekday == null || job.weekday < 0 || job.weekday > 6)) {
+          continue;
+        }
+
+        if (lastRunByJobId.get(job.id) === minuteKey) {
+          continue;
+        }
+
+        lastRunByJobId.set(job.id, minuteKey);
+        console.log(`[scheduler:scheduled-email] triggering ${job.type} (${job.id}) at ${minuteKey}`);
+        await runScheduledEmailJob(job.id);
+      }
+    } catch (err) {
+      console.error("[scheduler:scheduled-email] tick failed", err);
+    }
+  };
+
+  void tick();
+  setInterval(() => {
+    void tick();
+  }, 30_000);
+
+  console.log("[scheduler:scheduled-email] polling started (every 30s)");
 }
 
 const dev = process.env.NODE_ENV !== "production";
@@ -304,14 +363,14 @@ app.prepare().then(() => {
   };
 
   io.on("connection", (socket: Socket) => {
-    console.log("Client connected", socket.id);
+    console.log("Client connected");
 
     socket.on("employee_late_alert", (payload: LateAlertPayload) => {
       io.emit("employee_late_alert", payload);
     });
 
     socket.on("disconnect", () => {
-      console.log("Client disconnected", socket.id);
+      console.log("Client disconnected");
     });
   });
 
@@ -341,6 +400,9 @@ app.prepare().then(() => {
       console.error("[scheduler:auto-close-pointages] unable to schedule", err);
     }
   })();
+
+  // Scheduled email jobs (daily / weekly reports)
+  startScheduledEmailJobsPolling();
 
   try {
     scheduleLdapSyncTask();
