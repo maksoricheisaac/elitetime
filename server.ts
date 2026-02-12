@@ -190,7 +190,11 @@ function startScheduledEmailJobsPolling() {
 
         lastRunByJobId.set(job.id, minuteKey);
         console.log(`[scheduler:scheduled-email] triggering ${job.type} (${job.id}) at ${minuteKey}`);
-        await runScheduledEmailJob(job.id);
+        try {
+          await runScheduledEmailJob(job.id);
+        } catch (err) {
+          console.error(`[scheduler:scheduled-email] job failed (${job.type} ${job.id})`, err);
+        }
       }
     } catch (err) {
       console.error("[scheduler:scheduled-email] tick failed", err);

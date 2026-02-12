@@ -338,9 +338,7 @@ export default function AdminSettingsClient({ initialSettings, emailScheduling }
           <TabsTrigger value="overtime" className="text-xs md:text-sm">
             Heures supplémentaires
           </TabsTrigger>
-          <TabsTrigger value="holidays" className="text-xs md:text-sm">
-            Jours fériés
-          </TabsTrigger>
+          
           <TabsTrigger value="notifications" className="text-xs md:text-sm">
             Notifications
           </TabsTrigger>
@@ -350,9 +348,7 @@ export default function AdminSettingsClient({ initialSettings, emailScheduling }
           <TabsTrigger value="ldap" className="text-xs md:text-sm">
             LDAP / AD
           </TabsTrigger>
-          <TabsTrigger value="danger" className="text-xs md:text-sm text-destructive">
-            Zone de danger
-          </TabsTrigger>
+          
         </TabsList>
 
         <TabsContent value="work" className="mt-4 space-y-6">

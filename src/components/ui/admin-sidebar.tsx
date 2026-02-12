@@ -91,9 +91,9 @@ export const AdminSidebar = memo(() => {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
-              <Link prefetch={false} href={homePath} className="flex flex-col items-center h-24">
+              <Link prefetch={false} href={homePath} className="flex flex-col items-center h-36">
                 <div className="flex items-center justify-center rounded-lg -mt-5 group-data-[collapsible=icon]:mt-0">
-                  <Image src={logo} alt="logo" width={150} height={150} />
+                  <Image src={logo} alt="logo" width={180} height={180} />
                 </div>
               </Link>
             </SidebarMenuButton>
