@@ -16,7 +16,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { PresenceChart } from "@/components/charts/presence-chart";
 import { formatMinutesHuman } from "@/lib/time-format";
 import { useNotification } from "@/contexts/notification-context";
-import { PDFDocument, StandardFonts } from "pdf-lib";
 import { EmployeeReportDateRangeFilter } from "@/features/manager/employee-report-date-range-filter";
 
 interface ManagerPointagesClientProps {
@@ -249,135 +248,18 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
         year: "numeric",
       });
       void logReportExport("TEAM_DAILY_POINTAGES_PDF", `Date: ${todayLabel}`);
-      const pdfDoc = await PDFDocument.create();
-      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-      let page = pdfDoc.addPage();
-      let { height } = page.getSize();
-
-      const margin = 40;
-      let y = height - margin;
-      const lineHeight = 14;
-
-      const drawLine = (text: string, x: number, yPos: number, size = 10) => {
-        page.drawText(text, {
-          x,
-          y: yPos,
-          size,
-          font,
-        });
-      };
-
-      const ensureSpace = (neededLines = 1) => {
-        if (y - neededLines * lineHeight < margin) {
-          page = pdfDoc.addPage();
-          ({ height } = page.getSize());
-          y = height - margin;
-        }
-      };
-
-      // Titre
-      drawLine("Pointages de l'équipe", margin, y, 16);
-      y -= lineHeight * 2;
-      drawLine(`Date : ${todayLabel}`, margin, y, 11);
-      y -= lineHeight * 2;
-
-      // En-têtes de colonnes
-      ensureSpace();
-      const colX = {
-        name: margin,
-        dept: margin + 170,
-        entry: margin + 260,
-        exit: margin + 320,
-        breakStart: margin + 380,
-        breakEnd: margin + 440,
-        breakDuration: margin + 500,
-        workDuration: margin + 560,
-      } as const;
-
-      drawLine("Employé", colX.name, y, 9);
-      drawLine("Département", colX.dept, y, 9);
-      drawLine("Entrée", colX.entry, y, 9);
-      drawLine("Sortie", colX.exit, y, 9);
-      drawLine("Début pause", colX.breakStart, y, 9);
-      drawLine("Fin pause", colX.breakEnd, y, 9);
-      drawLine("Durée pauses", colX.breakDuration, y, 9);
-      drawLine("Durée", colX.workDuration, y, 9);
-      y -= lineHeight;
-
-      // Séparateur
-      ensureSpace();
-      drawLine("".padEnd(90, "-"), margin, y, 8);
-      y -= lineHeight;
-
-      for (const row of todayRows) {
-        ensureSpace();
-
-        const employee = row.employee;
-        const pointage = row.pointage;
-        const employeeBreaks = row.breaks;
-
-        const employeeNameRaw = `${employee.firstname ?? ""} ${employee.lastname ?? ""}`.trim() || "-";
-        const employeeName =
-          employeeNameRaw.length > 28 ? `${employeeNameRaw.slice(0, 27)}…` : employeeNameRaw;
-        const departmentRaw = employee.department ?? "-";
-        const department =
-          departmentRaw.length > 20 ? `${departmentRaw.slice(0, 19)}…` : departmentRaw;
-        const entryTime = pointage?.entryTime ?? "-";
-        const exitTime = pointage?.exitTime ?? "-";
-
-        let breakStart = "-";
-        let breakEnd = "-";
-        let totalBreak = "-";
-
-        if (employeeBreaks && employeeBreaks.length > 0) {
-          const startTimes = employeeBreaks
-            .map((b) => b.startTime)
-            .filter((t): t is string => Boolean(t))
-            .sort();
-          const endTimes = employeeBreaks
-            .map((b) => b.endTime)
-            .filter((t): t is string => Boolean(t))
-            .sort();
-
-          if (startTimes.length > 0) {
-            breakStart = startTimes[0];
-          }
-          if (endTimes.length > 0) {
-            breakEnd = endTimes[endTimes.length - 1];
-          }
-
-          const totalMinutes = employeeBreaks.reduce((sum, b) => sum + (b.duration ?? 0), 0);
-          if (totalMinutes > 0) {
-            totalBreak = formatMinutesHuman(totalMinutes);
-          }
-        }
-
-        let workDuration = "-";
-        if (pointage && pointage.duration && pointage.duration > 0) {
-          workDuration = formatMinutesHuman(pointage.duration);
-        }
-
-        drawLine(employeeName, colX.name, y, 8);
-        drawLine(department, colX.dept, y, 8);
-        drawLine(entryTime, colX.entry, y, 8);
-        drawLine(exitTime, colX.exit, y, 8);
-        drawLine(breakStart, colX.breakStart, y, 8);
-        drawLine(breakEnd, colX.breakEnd, y, 8);
-        drawLine(totalBreak, colX.breakDuration, y, 8);
-        drawLine(workDuration, colX.workDuration, y, 8);
-
-        y -= lineHeight;
+      const dateIso = today.toISOString().slice(0, 10);
+      const res = await fetch(`/api/reports/pointages?from=${encodeURIComponent(dateIso)}&to=${encodeURIComponent(dateIso)}`);
+      if (!res.ok) {
+        throw new Error(`PDF download failed (${res.status})`);
       }
 
-      const pdfBytes = await pdfDoc.save();
-      const blob = new Blob([pdfBytes as unknown as BlobPart], {
-        type: "application/pdf",
-      });
+      const blob = await res.blob();
       const url = URL.createObjectURL(blob);
 
       const link = document.createElement("a");
       link.href = url;
-      link.download = `pointages_${today.toISOString().slice(0, 10)}.pdf`;
+      link.download = `pointages_${dateIso}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

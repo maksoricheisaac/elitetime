@@ -179,6 +179,7 @@ export default async function EmployeeReportDetailPage({ params, searchParams }:
             <div className="flex flex-col items-stretch gap-2 md:items-end">
               <EmployeeReportDateRangeFilter />
               <EmployeeReportExports
+                employeeId={employeeId}
                 employee={{
                   firstname: employee.firstname as string,
                   lastname: employee.lastname as string,
@@ -187,10 +188,6 @@ export default async function EmployeeReportDetailPage({ params, searchParams }:
                 from={from.toISOString()}
                 to={to.toISOString()}
                 rows={rows}
-                totalHours={totalHours}
-                lateCount={lateCount}
-                absenceCount={absenceCount}
-                overtimeHours={overtimeHours}
               />
             </div>
           </div>

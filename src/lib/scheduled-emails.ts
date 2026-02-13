@@ -1,7 +1,8 @@
 import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
-import { createGlobalPointagesReportPdf } from "@/lib/reports/pdf-global-pointages-report";
-import type { DailyReportMode, ScheduledEmailType } from "@/generated/prisma/client";
+import { renderPointagesReportHtml } from "@/lib/reports/pointages-report-template";
+import { renderPdfFromHtml } from "@/lib/reports/html-to-pdf";
+import type { DailyReportMode } from "@/generated/prisma/client";
 
 function getDailyPeriod(mode: DailyReportMode): { from: Date; to: Date; label: string } {
   const now = new Date();
@@ -135,14 +136,58 @@ export async function runScheduledEmailJob(jobId: string): Promise<void> {
       ? `Rapport quotidien des pointages (${periodLabel})`
       : `Rapport hebdomadaire des pointages (${periodLabel})`;
 
-  const pdfBytes = await createGlobalPointagesReportPdf({
-    users,
-    pointages,
-    breaks,
-    from,
-    to: toDate,
-    title,
+  const breaksByUser = new Map<string, { startTimes: string[]; endTimes: string[] }>();
+  for (const b of breaks) {
+    const startTime = b.startTime ?? "";
+    const endTime = b.endTime ?? "";
+    if (!startTime && !endTime) continue;
+
+    const current = breaksByUser.get(b.userId) ?? { startTimes: [], endTimes: [] };
+    if (startTime) current.startTimes.push(startTime);
+    if (endTime) current.endTimes.push(endTime);
+    breaksByUser.set(b.userId, current);
+  }
+
+  const pointagesByUser = new Map<string, { entry: string; exit: string }>();
+  for (const p of pointages) {
+    const current = pointagesByUser.get(p.userId) ?? { entry: "", exit: "" };
+    if (p.entryTime) current.entry = p.entryTime;
+    if (p.exitTime) current.exit = p.exitTime;
+    pointagesByUser.set(p.userId, current);
+  }
+
+  const sortedUsers = [...users].sort((a, b) => {
+    const aName = `${a.firstname ?? ""} ${a.lastname ?? ""}`.trim().toLowerCase();
+    const bName = `${b.firstname ?? ""} ${b.lastname ?? ""}`.trim().toLowerCase();
+    return aName.localeCompare(bName);
   });
+
+  const rows = sortedUsers.map((u) => {
+    const fullName = `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim();
+    const position = u.position ?? u.department ?? "";
+    const times = pointagesByUser.get(u.id);
+    const userBreaks = breaksByUser.get(u.id);
+
+    const startTimes = (userBreaks?.startTimes ?? []).slice().sort();
+    const endTimes = (userBreaks?.endTimes ?? []).slice().sort();
+
+    return {
+      fullName,
+      position,
+      checkIn: times?.entry ?? "",
+      checkOut: times?.exit ?? "",
+      breakStart: startTimes[0] ?? "",
+      breakEnd: endTimes.length > 0 ? endTimes[endTimes.length - 1] : "",
+    };
+  });
+
+  const html = renderPointagesReportHtml({
+    periodLabel,
+    generatedAtLabel: new Date().toLocaleString("fr-FR"),
+    rows,
+  });
+
+  const pdfBytes = await renderPdfFromHtml({ html });
 
   const fileNameBase = job.type === "DAILY_REPORT" ? "rapport_quotidien" : "rapport_hebdomadaire";
   const fileName = `${fileNameBase}_${new Date().toISOString().slice(0, 10)}.pdf`;
