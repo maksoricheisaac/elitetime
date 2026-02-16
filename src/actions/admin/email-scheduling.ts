@@ -20,13 +20,6 @@ const UpdateEmailSchedulingSchema = z.object({
   }),
 });
 
-function parseTimeToHM(value: string): [number, number] {
-  const [hStr, mStr] = value.split(":");
-  const h = Number(hStr);
-  const m = Number(mStr);
-  return [h, m];
-}
-
 export async function adminGetEmailScheduling() {
   await requireAdmin();
 

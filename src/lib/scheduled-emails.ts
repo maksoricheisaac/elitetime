@@ -3,6 +3,7 @@ import { sendEmail } from "@/lib/email";
 import { renderPointagesReportHtml } from "@/lib/reports/pointages-report-template";
 import { renderPdfFromHtml } from "@/lib/reports/html-to-pdf";
 import type { DailyReportMode } from "@/generated/prisma/client";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 function getDailyPeriod(mode: DailyReportMode): { from: Date; to: Date; label: string } {
   const now = new Date();
@@ -149,11 +150,16 @@ export async function runScheduledEmailJob(jobId: string): Promise<void> {
   }
 
   const pointagesByUser = new Map<string, { entry: string; exit: string }>();
+  const workMinutesByUser = new Map<string, number>();
   for (const p of pointages) {
     const current = pointagesByUser.get(p.userId) ?? { entry: "", exit: "" };
     if (p.entryTime) current.entry = p.entryTime;
     if (p.exitTime) current.exit = p.exitTime;
     pointagesByUser.set(p.userId, current);
+
+    if (typeof p.duration === "number") {
+      workMinutesByUser.set(p.userId, (workMinutesByUser.get(p.userId) ?? 0) + p.duration);
+    }
   }
 
   const sortedUsers = [...users].sort((a, b) => {
@@ -162,11 +168,21 @@ export async function runScheduledEmailJob(jobId: string): Promise<void> {
     return aName.localeCompare(bName);
   });
 
+  const breakMinutesByUser = new Map<string, number>();
+  for (const b of breaks) {
+    if (typeof b.duration === "number") {
+      breakMinutesByUser.set(b.userId, (breakMinutesByUser.get(b.userId) ?? 0) + b.duration);
+    }
+  }
+
   const rows = sortedUsers.map((u) => {
     const fullName = `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim();
     const position = u.position ?? u.department ?? "";
     const times = pointagesByUser.get(u.id);
     const userBreaks = breaksByUser.get(u.id);
+
+    const totalBreakMinutes = breakMinutesByUser.get(u.id) ?? 0;
+    const totalWorkMinutes = workMinutesByUser.get(u.id) ?? 0;
 
     const startTimes = (userBreaks?.startTimes ?? []).slice().sort();
     const endTimes = (userBreaks?.endTimes ?? []).slice().sort();
@@ -178,6 +194,8 @@ export async function runScheduledEmailJob(jobId: string): Promise<void> {
       checkOut: times?.exit ?? "",
       breakStart: startTimes[0] ?? "",
       breakEnd: endTimes.length > 0 ? endTimes[endTimes.length - 1] : "",
+      breakDuration: totalBreakMinutes > 0 ? formatMinutesHuman(totalBreakMinutes) : "",
+      workDuration: totalWorkMinutes > 0 ? formatMinutesHuman(totalWorkMinutes) : "",
     };
   });
 

@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { getAuthenticatedUser, getUserPermissions } from "@/lib/security/rbac";
 import { renderPointagesReportHtml } from "@/lib/reports/pointages-report-template";
 import { renderPdfFromHtml } from "@/lib/reports/html-to-pdf";
+import { formatMinutesHuman } from "@/lib/time-format";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,6 @@ export async function GET(req: Request) {
         NonNullable<Parameters<typeof prisma.user.findMany>[0]>["where"]
       > = {
         id: employeeId,
-        status: "active",
       };
 
       users = await prisma.user.findMany({
@@ -73,7 +73,6 @@ export async function GET(req: Request) {
       const whereUser: NonNullable<
         NonNullable<Parameters<typeof prisma.user.findMany>[0]>["where"]
       > = {
-        status: "active",
         role: { in: ["employee", "team_lead"] },
       };
 
@@ -114,6 +113,7 @@ export async function GET(req: Request) {
     ]);
 
     const breaksByUser = new Map<string, { startTimes: string[]; endTimes: string[] }>();
+    const breakMinutesByUser = new Map<string, number>();
     for (const b of breaks) {
       const startTime = b.startTime ?? "";
       const endTime = b.endTime ?? "";
@@ -123,14 +123,23 @@ export async function GET(req: Request) {
       if (startTime) current.startTimes.push(startTime);
       if (endTime) current.endTimes.push(endTime);
       breaksByUser.set(b.userId, current);
+
+      if (typeof b.duration === "number") {
+        breakMinutesByUser.set(b.userId, (breakMinutesByUser.get(b.userId) ?? 0) + b.duration);
+      }
     }
 
     const pointagesByUser = new Map<string, { entry: string; exit: string }>();
+    const workMinutesByUser = new Map<string, number>();
     for (const p of pointages) {
       const current = pointagesByUser.get(p.userId) ?? { entry: "", exit: "" };
       if (p.entryTime) current.entry = p.entryTime;
       if (p.exitTime) current.exit = p.exitTime;
       pointagesByUser.set(p.userId, current);
+
+      if (typeof p.duration === "number") {
+        workMinutesByUser.set(p.userId, (workMinutesByUser.get(p.userId) ?? 0) + p.duration);
+      }
     }
 
     const sortedUsers = [...users].sort((a, b) => {
@@ -145,6 +154,9 @@ export async function GET(req: Request) {
       const times = pointagesByUser.get(u.id);
       const userBreaks = breaksByUser.get(u.id);
 
+      const totalBreakMinutes = breakMinutesByUser.get(u.id) ?? 0;
+      const totalWorkMinutes = workMinutesByUser.get(u.id) ?? 0;
+
       const startTimes = (userBreaks?.startTimes ?? []).slice().sort();
       const endTimes = (userBreaks?.endTimes ?? []).slice().sort();
 
@@ -155,6 +167,8 @@ export async function GET(req: Request) {
         checkOut: times?.exit ?? "",
         breakStart: startTimes[0] ?? "",
         breakEnd: endTimes.length > 0 ? endTimes[endTimes.length - 1] : "",
+        breakDuration: totalBreakMinutes > 0 ? formatMinutesHuman(totalBreakMinutes) : "",
+        workDuration: totalWorkMinutes > 0 ? formatMinutesHuman(totalWorkMinutes) : "",
       };
     });
 
@@ -170,10 +184,12 @@ export async function GET(req: Request) {
 
     const pdfBytes = await renderPdfFromHtml({ html });
 
+    const pdfBody = Buffer.from(pdfBytes);
+
     const fileNameBase = isTeamReport ? "rapport_pointages_equipe" : "rapport_pointages_employe";
     const fileName = `${fileNameBase}_${new Date().toISOString().slice(0, 10)}.pdf`;
 
-    return new NextResponse(pdfBytes, {
+    return new NextResponse(pdfBody, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",

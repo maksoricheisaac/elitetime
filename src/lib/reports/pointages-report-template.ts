@@ -5,6 +5,8 @@ export type PointagesReportRow = {
   checkOut: string;
   breakStart: string;
   breakEnd: string;
+  breakDuration: string;
+  workDuration: string;
 };
 
 export interface PointagesReportTemplateInput {
@@ -40,12 +42,14 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
                 <td class="col-time">${cell(r.checkOut)}</td>
                 <td class="col-time">${cell(r.breakStart)}</td>
                 <td class="col-time">${cell(r.breakEnd)}</td>
+                <td class="col-duration">${cell(r.breakDuration)}</td>
+                <td class="col-duration">${cell(r.workDuration)}</td>
               </tr>`,
           )
           .join("")
       : `
           <tr>
-            <td class="empty" colspan="6">Aucune donnée disponible pour cette période.</td>
+            <td class="empty" colspan="8">Aucune donnée disponible pour cette période.</td>
           </tr>`;
 
   return `<!doctype html>
@@ -61,21 +65,19 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
       }
 
       :root {
-        --bg-0: #0b1220;
-        --bg-1: #070a12;
-        --panel: rgba(255, 255, 255, 0.06);
-        --panel-2: rgba(255, 255, 255, 0.04);
+        --bg: #ffffff;
+        --panel: #ffffff;
 
-        --text: #ffffff;
-        --muted: rgba(255, 255, 255, 0.72);
+        --text: #0f172a;
+        --muted: rgba(15, 23, 42, 0.65);
 
         --blue: #2f6bff;
         --blue-2: #1f4ed8;
 
-        --border: rgba(255, 255, 255, 0.16);
-        --border-strong: rgba(255, 255, 255, 0.28);
+        --border: rgba(15, 23, 42, 0.14);
+        --border-strong: rgba(15, 23, 42, 0.22);
 
-        --shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+        --shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
       }
 
       * {
@@ -92,12 +94,7 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
         color: var(--text);
         font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial,
           "Apple Color Emoji", "Segoe UI Emoji";
-        background: radial-gradient(
-            1200px 600px at 20% 15%,
-            rgba(47, 107, 255, 0.18),
-            transparent 55%
-          ),
-          linear-gradient(135deg, var(--bg-0), var(--bg-1));
+        background: var(--bg);
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
       }
@@ -126,11 +123,7 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
         align-items: center;
         padding: 16px 18px;
         border: 1px solid var(--border);
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255,  255, 0.06),
-          rgba(255, 255, 255, 0.03)
-        );
+        background: var(--panel);
         border-radius: 14px;
         box-shadow: var(--shadow);
       }
@@ -194,7 +187,7 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
         text-transform: uppercase;
         display: inline-block;
         padding-bottom: 6px;
-        border-bottom: 2px solid rgba(255, 255, 255, 0.75);
+        border-bottom: 2px solid rgba(15, 23, 42, 0.22);
       }
 
       .meta {
@@ -224,13 +217,13 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
         border-radius: 999px;
         border: 1px solid var(--border-strong);
         background: rgba(47, 107, 255, 0.12);
-        color: rgba(255, 255, 255, 0.92);
+        color: rgba(15, 23, 42, 0.92);
         letter-spacing: 0.2px;
       }
 
       .card {
         border: 1px solid var(--border);
-        background: linear-gradient(180deg, var(--panel), var(--panel-2));
+        background: var(--panel);
         border-radius: 14px;
         overflow: hidden;
         box-shadow: var(--shadow);
@@ -260,19 +253,19 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
 
       tbody td {
         padding: 12px 10px;
-        border-top: 1px solid rgba(255, 255, 255, 0.10);
-        border-right: 1px solid rgba(255, 255, 255, 0.10);
+        border-top: 1px solid rgba(15, 23, 42, 0.10);
+        border-right: 1px solid rgba(15, 23, 42, 0.10);
         font-size: 12.5px;
-        color: rgba(255, 255, 255, 0.92);
+        color: rgba(15, 23, 42, 0.92);
         vertical-align: middle;
       }
 
       tbody tr:nth-child(odd) td {
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(15, 23, 42, 0.02);
       }
 
       tbody tr:nth-child(even) td {
-        background: rgba(255, 255, 255, 0.015);
+        background: rgba(15, 23, 42, 0.01);
       }
 
       tbody td:last-child {
@@ -288,7 +281,7 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
       .col-position {
         width: 18%;
         text-align: left;
-        color: rgba(255, 255, 255, 0.84);
+        color: rgba(15, 23, 42, 0.75);
         font-weight: 650;
       }
 
@@ -299,10 +292,18 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
         letter-spacing: 0.2px;
       }
 
+      .col-duration {
+        width: 12.2%;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.2px;
+        font-weight: 700;
+      }
+
       .empty {
         padding: 18px;
         text-align: center;
-        color: rgba(255, 255, 255, 0.75);
+        color: rgba(15, 23, 42, 0.65);
         font-size: 12.5px;
       }
 
@@ -311,7 +312,7 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
         justify-content: space-between;
         gap: 10px;
         padding: 10px 4px 0 4px;
-        color: rgba(255, 255, 255, 0.60);
+        color: rgba(15, 23, 42, 0.55);
         font-size: 11px;
       }
 
@@ -377,6 +378,8 @@ export function renderPointagesReportHtml(input: PointagesReportTemplateInput): 
                 <th class="col-time">Sortie</th>
                 <th class="col-time">Début pause</th>
                 <th class="col-time">Fin pause</th>
+                <th class="col-duration">Durée pauses</th>
+                <th class="col-duration">Durée travail</th>
               </tr>
             </thead>
 
