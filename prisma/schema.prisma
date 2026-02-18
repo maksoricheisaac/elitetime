@@ -30,6 +30,8 @@ model User {
   teamLead           User?               @relation("TeamLead", fields: [teamLeadId], references: [id])
   teamMembers        User[]              @relation("TeamLead")
   userPermissions    UserPermission[]
+
+  scheduledEmailJobRecipients ScheduledEmailJobRecipient[]
 }
 
 model Pointage {
@@ -113,6 +115,7 @@ model SystemSettings {
   ldapLastSyncAt            DateTime?
   ldapSyncEnabled           Boolean   @default(false)
   ldapSyncIntervalMinutes   Int       @default(60)
+  dailyReportMode           DailyReportMode @default(YESTERDAY)
 }
 
 model Department {
@@ -190,6 +193,40 @@ model PagePermission {
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   @@id([pageId, permissionId])
+}
+
+model ScheduledEmailJob {
+  id          String             @id @default(cuid())
+  type        ScheduledEmailType
+  enabled     Boolean            @default(true)
+  hour        Int                
+  minute      Int                
+  weekday     Int?              
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  recipients  ScheduledEmailJobRecipient[]
+
+  @@unique([type])
+}
+
+model ScheduledEmailJobRecipient {
+  id        String             @id @default(cuid())
+  jobId     String
+  userId    String
+
+  job       ScheduledEmailJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum ScheduledEmailType {
+  DAILY_REPORT
+  WEEKLY_REPORT
+}
+
+enum DailyReportMode {
+  TODAY
+  YESTERDAY
 }
 
 enum UserRole {

@@ -451,7 +451,7 @@ export default function EmployeeDashboardClient({
 								</span>
 								<Button
 										type="button"
-										variant="outline"
+										variant="default"
 										size="sm"
 										className="cursor-pointer"
 										onClick={() => setShowLateReasonForm(true)}
@@ -480,7 +480,7 @@ export default function EmployeeDashboardClient({
 										</Button>
 										<Button
 											type="button"
-											variant="ghost"
+											variant="destructive"
 											size="sm"
 											className="cursor-pointer"
 											onClick={() => setShowLateReasonForm(false)}
@@ -528,7 +528,7 @@ export default function EmployeeDashboardClient({
 				<p className="text-sm text-muted-foreground">
 				{isOnLeaveToday
 					? "Vous êtes en congé aujourd'hui."
-					: "Vous n&apos;avez pas encore pointé aujourd&apos;hui."}
+					: "Vous n'avez pas encore pointé aujourd'hui."}
 					</p>
 				)}
 				<div className="space-y-2">

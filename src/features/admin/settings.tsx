@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,8 @@ import { Clock, Calendar, Bell, TrendingUp, Plus, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,7 +28,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import type { SystemSettings } from "@/generated/prisma/client";
 import { adminUpdateSystemSettings } from "@/actions/admin/settings";
+import { adminUpdateEmailScheduling } from "@/actions/admin/email-scheduling";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   systemSettingsFormSchema,
   type SystemSettingsFormInput,
@@ -35,11 +39,62 @@ import {
 
 interface AdminSettingsClientProps {
   initialSettings: SystemSettings;
+  emailScheduling: {
+    eligibleUsers: Array<{
+      id: string;
+      username: string;
+      email: string | null;
+      firstname: string | null;
+      lastname: string | null;
+      role: string;
+    }>;
+    daily: {
+      id: string;
+      enabled: boolean;
+      hour: number;
+      minute: number;
+      recipientUserIds: string[];
+    } | null;
+    weekly: {
+      id: string;
+      enabled: boolean;
+      hour: number;
+      minute: number;
+      weekday: number;
+      recipientUserIds: string[];
+    } | null;
+  };
 }
 
-export default function AdminSettingsClient({ initialSettings }: AdminSettingsClientProps) {
+export default function AdminSettingsClient({ initialSettings, emailScheduling }: AdminSettingsClientProps) {
   const { showSuccess, showError } = useNotification();
   const [isPending, startTransition] = useTransition();
+
+  const formatTime = (hour: number, minute: number) => {
+    const h = String(hour).padStart(2, "0");
+    const m = String(minute).padStart(2, "0");
+    return `${h}:${m}`;
+  };
+
+  const defaultDailyTime = emailScheduling.daily
+    ? formatTime(emailScheduling.daily.hour, emailScheduling.daily.minute)
+    : "18:00";
+  const defaultWeeklyTime = emailScheduling.weekly
+    ? formatTime(emailScheduling.weekly.hour, emailScheduling.weekly.minute)
+    : "08:00";
+  const defaultWeeklyWeekday = emailScheduling.weekly?.weekday ?? 1;
+
+  const [dailyTime, setDailyTime] = useState<string>(defaultDailyTime);
+  const [weeklyTime, setWeeklyTime] = useState<string>(defaultWeeklyTime);
+  const [weeklyWeekday, setWeeklyWeekday] = useState<number>(defaultWeeklyWeekday);
+  const [dailyRecipientIds, setDailyRecipientIds] = useState<Set<string>>(
+    new Set(emailScheduling.daily?.recipientUserIds ?? []),
+  );
+  const [weeklyRecipientIds, setWeeklyRecipientIds] = useState<Set<string>>(
+    new Set(emailScheduling.weekly?.recipientUserIds ?? []),
+  );
+
+  const eligibleUsers = useMemo(() => emailScheduling.eligibleUsers ?? [], [emailScheduling.eligibleUsers]);
 
   const form = useForm<SystemSettingsFormInput, unknown, SystemSettingsFormValues>({
     resolver: zodResolver(systemSettingsFormSchema),
@@ -53,6 +108,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
       notificationsEnabled: initialSettings.notificationsEnabled,
       ldapSyncEnabled: initialSettings.ldapSyncEnabled,
       ldapSyncIntervalMinutes: initialSettings.ldapSyncIntervalMinutes,
+      dailyReportMode: initialSettings.dailyReportMode ?? "YESTERDAY",
       newHoliday: "",
     },
     mode: "onSubmit",
@@ -66,6 +122,95 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
         type: "manual",
         message: issue.message,
       });
+    });
+  };
+
+  const handleSaveEmailSettings = () => {
+    void form.handleSubmit((values) => {
+      const parsed = systemSettingsFormSchema.pick({ dailyReportMode: true }).safeParse(values);
+      if (!parsed.success) {
+        applyZodErrors(parsed.error);
+        showError("Veuillez corriger les paramètres email en erreur.");
+        return;
+      }
+
+      const parseTime = (value: string): { hour: number; minute: number } | null => {
+        const [hStr, mStr] = value.split(":");
+        const hour = Number(hStr);
+        const minute = Number(mStr);
+        if (
+          !Number.isFinite(hour) ||
+          !Number.isFinite(minute) ||
+          hour < 0 ||
+          hour > 23 ||
+          minute < 0 ||
+          minute > 59
+        ) {
+          return null;
+        }
+        return { hour, minute };
+      };
+
+      const dailyHm = parseTime(dailyTime);
+      const weeklyHm = parseTime(weeklyTime);
+      if (!dailyHm || !weeklyHm) {
+        showError("Heure invalide (format HH:MM requis).");
+        return;
+      }
+
+      startTransition(async () => {
+        try {
+          await adminUpdateSystemSettings({ dailyReportMode: parsed.data.dailyReportMode });
+          await adminUpdateEmailScheduling({
+            daily: {
+              hour: dailyHm.hour,
+              minute: dailyHm.minute,
+              recipientUserIds: Array.from(dailyRecipientIds),
+            },
+            weekly: {
+              hour: weeklyHm.hour,
+              minute: weeklyHm.minute,
+              weekday: weeklyWeekday,
+              recipientUserIds: Array.from(weeklyRecipientIds),
+            },
+          });
+          showSuccess("Paramètres email enregistrés");
+        } catch {
+          showError("Impossible d'enregistrer les paramètres email pour le moment.");
+        }
+      });
+    })();
+  };
+
+  const weekdayOptions = useMemo(
+    () => [
+      { value: 1, label: "Lundi" },
+      { value: 2, label: "Mardi" },
+      { value: 3, label: "Mercredi" },
+      { value: 4, label: "Jeudi" },
+      { value: 5, label: "Vendredi" },
+      { value: 6, label: "Samedi" },
+      { value: 0, label: "Dimanche" },
+    ],
+    [],
+  );
+
+  const toggleRecipient = (scope: "daily" | "weekly", userId: string, checked: boolean) => {
+    if (scope === "daily") {
+      setDailyRecipientIds((prev) => {
+        const next = new Set(prev);
+        if (checked) next.add(userId);
+        else next.delete(userId);
+        return next;
+      });
+      return;
+    }
+
+    setWeeklyRecipientIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(userId);
+      else next.delete(userId);
+      return next;
     });
   };
 
@@ -193,18 +338,17 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
           <TabsTrigger value="overtime" className="text-xs md:text-sm">
             Heures supplémentaires
           </TabsTrigger>
-          <TabsTrigger value="holidays" className="text-xs md:text-sm">
-            Jours fériés
-          </TabsTrigger>
+          
           <TabsTrigger value="notifications" className="text-xs md:text-sm">
             Notifications
+          </TabsTrigger>
+          <TabsTrigger value="emails" className="text-xs md:text-sm">
+            Emails
           </TabsTrigger>
           <TabsTrigger value="ldap" className="text-xs md:text-sm">
             LDAP / AD
           </TabsTrigger>
-          <TabsTrigger value="danger" className="text-xs md:text-sm text-destructive">
-            Zone de danger
-          </TabsTrigger>
+          
         </TabsList>
 
         <TabsContent value="work" className="mt-4 space-y-6">
@@ -281,6 +425,7 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                   )}
                 />
               </div>
+
               <Button className="cursor-pointer" type="button" onClick={handleSaveGeneral} disabled={isPending}>
                 Enregistrer les modifications
               </Button>
@@ -526,17 +671,6 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                   )}
                 />
               </div>
-
-              <div className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <Label className="text-base">Notifications par email</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Envoyer des emails pour les événements critiques
-                  </p>
-                </div>
-                <Switch defaultChecked />
-              </div>
-
               <div className="flex items-center justify-between rounded-lg border p-4">
                 <div className="space-y-0.5">
                   <Label className="text-base">Alertes de retard</Label>
@@ -556,6 +690,179 @@ export default function AdminSettingsClient({ initialSettings }: AdminSettingsCl
                 </div>
                 <Switch defaultChecked />
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="emails" className="mt-4 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Bell className="h-5 w-5" />
+                Emails et rapports planifiés
+              </CardTitle>
+              <CardDescription>
+                Configuration des rapports quotidiens / hebdomadaires envoyés par email (PDF)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Rapport quotidien</Label>
+                    <p className="text-sm text-muted-foreground">Mode, heure d&apos;envoi et destinataires</p>
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="dailyReportMode"
+                    render={({ field }) => (
+                      <FormItem className="max-w-xs">
+                        <FormLabel>Mode</FormLabel>
+                        <FormControl>
+                          <Select value={field.value} onValueChange={field.onChange}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Sélectionner le mode" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="TODAY">Journée en cours</SelectItem>
+                              <SelectItem value="YESTERDAY">Journée précédente (J-1)</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <div className="max-w-xs space-y-2">
+                    <Label>Heure d&apos;envoi</Label>
+                    <Input type="time" value={dailyTime} onChange={(e) => setDailyTime(e.target.value)} />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-base">Destinataires</Label>
+                    {eligibleUsers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Aucun compte admin/manager actif avec email n&apos;est disponible.
+                      </p>
+                    ) : (
+                      <ScrollArea className="h-64 rounded-md border">
+                        <div className="p-2 space-y-2">
+                          {eligibleUsers.map((u) => {
+                            const name = `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim() || u.username;
+                            return (
+                              <div
+                                key={`daily-${u.id}`}
+                                className="flex items-center justify-between rounded-lg border p-3"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <Checkbox
+                                    id={`daily-recipient-${u.id}`}
+                                    checked={dailyRecipientIds.has(u.id)}
+                                    onCheckedChange={(checked) =>
+                                      toggleRecipient("daily", u.id, checked as boolean)
+                                    }
+                                    disabled={isPending}
+                                  />
+                                  <div className="min-w-0">
+                                    <Label
+                                      htmlFor={`daily-recipient-${u.id}`}
+                                      className="font-medium cursor-pointer truncate block"
+                                    >
+                                      {name}
+                                    </Label>
+                                    <div className="text-sm text-muted-foreground truncate">{u.email}</div>
+                                  </div>
+                                </div>
+                                <Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="space-y-0.5">
+                    <Label className="text-base">Rapport hebdomadaire</Label>
+                    <p className="text-sm text-muted-foreground">Jour, heure d&apos;envoi et destinataires</p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Jour d&apos;envoi</Label>
+                      <Select value={String(weeklyWeekday)} onValueChange={(v) => setWeeklyWeekday(Number(v))}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choisir le jour" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {weekdayOptions.map((d) => (
+                            <SelectItem key={d.value} value={String(d.value)}>
+                              {d.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Heure d&apos;envoi</Label>
+                      <Input type="time" value={weeklyTime} onChange={(e) => setWeeklyTime(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-base">Destinataires</Label>
+                    {eligibleUsers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Aucun compte admin/manager actif avec email n&apos;est disponible.
+                      </p>
+                    ) : (
+                      <ScrollArea className="h-64 rounded-md border">
+                        <div className="p-2 space-y-2">
+                          {eligibleUsers.map((u) => {
+                            const name = `${u.firstname ?? ""} ${u.lastname ?? ""}`.trim() || u.username;
+                            return (
+                              <div
+                                key={`weekly-${u.id}`}
+                                className="flex items-center justify-between rounded-lg border p-3"
+                              >
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <Checkbox
+                                    id={`weekly-recipient-${u.id}`}
+                                    checked={weeklyRecipientIds.has(u.id)}
+                                    onCheckedChange={(checked) =>
+                                      toggleRecipient("weekly", u.id, checked as boolean)
+                                    }
+                                    disabled={isPending}
+                                  />
+                                  <div className="min-w-0">
+                                    <Label
+                                      htmlFor={`weekly-recipient-${u.id}`}
+                                      className="font-medium cursor-pointer truncate block"
+                                    >
+                                      {name}
+                                    </Label>
+                                    <div className="text-sm text-muted-foreground truncate">{u.email}</div>
+                                  </div>
+                                </div>
+                                <Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <Button className="cursor-pointer" type="button" onClick={handleSaveEmailSettings} disabled={isPending}>
+                Enregistrer les paramètres email
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>

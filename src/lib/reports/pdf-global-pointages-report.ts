@@ -1,0 +1,184 @@
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import type { User, Pointage, Break } from "@/generated/prisma/client";
+import { formatMinutesHuman } from "@/lib/time-format";
+
+export interface GlobalReportData {
+  users: User[];
+  pointages: Pointage[];
+  breaks: Break[];
+  from: Date;
+  to: Date;
+  title: string;
+}
+
+export async function createGlobalPointagesReportPdf({
+  users,
+  pointages,
+  breaks,
+  from,
+  to,
+  title,
+}: GlobalReportData): Promise<Uint8Array> {
+  const pdfDoc = await PDFDocument.create();
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+  let page = pdfDoc.addPage();
+  let { height } = page.getSize();
+
+  const margin = 40;
+  let y = height - margin;
+  const lineHeight = 14;
+
+  const sanitizePdfText = (value: unknown): string => {
+    if (value == null) return "";
+    const s = String(value);
+    return s.replace(/\u0000/g, "");
+  };
+
+  const drawLine = (text: string, x: number, yPos: number, size = 10) => {
+    const safeText = sanitizePdfText(text);
+
+    try {
+      page.drawText(safeText, {
+        x,
+        y: yPos,
+        size,
+        font,
+      });
+    } catch {
+      const fallback = safeText.replace(/[^\t\n\r\x20-\x7E\xA0-\xFF]/g, "?");
+      page.drawText(fallback, {
+        x,
+        y: yPos,
+        size,
+        font,
+      });
+    }
+  };
+
+  const ensureSpace = (neededLines = 1) => {
+    if (y - neededLines * lineHeight < margin) {
+      page = pdfDoc.addPage();
+      ({ height } = page.getSize());
+      y = height - margin;
+    }
+  };
+
+  const fromLabel = from.toLocaleDateString("fr-FR");
+  const toLabel = to.toLocaleDateString("fr-FR");
+
+  drawLine(title, margin, y, 16);
+  y -= lineHeight * 2;
+  drawLine(`Peeriode : ${fromLabel} - ${toLabel}`, margin, y, 11);
+  y -= lineHeight * 2;
+
+  ensureSpace();
+  const colX = {
+    name: margin,
+    dept: margin + 170,
+    entry: margin + 260,
+    exit: margin + 320,
+    breakStart: margin + 380,
+    breakEnd: margin + 440,
+    breakDuration: margin + 500,
+    workDuration: margin + 560,
+  } as const;
+
+  drawLine("Employé", colX.name, y, 9);
+  drawLine("Département", colX.dept, y, 9);
+  drawLine("Entrée", colX.entry, y, 9);
+  drawLine("Sortie", colX.exit, y, 9);
+  drawLine("Début pause", colX.breakStart, y, 9);
+  drawLine("Fin pause", colX.breakEnd, y, 9);
+  drawLine("Durée pauses", colX.breakDuration, y, 9);
+  drawLine("Durée", colX.workDuration, y, 9);
+  y -= lineHeight;
+
+  ensureSpace();
+  drawLine("".padEnd(90, "-"), margin, y, 8);
+  y -= lineHeight;
+  const pointagesByUser = new Map<string, Pointage[]>();
+  const breaksByUser = new Map<string, Break[]>();
+
+  for (const p of pointages) {
+    const arr = pointagesByUser.get(p.userId) ?? [];
+    arr.push(p);
+    pointagesByUser.set(p.userId, arr);
+  }
+
+  for (const b of breaks) {
+    const arr = breaksByUser.get(b.userId) ?? [];
+    arr.push(b);
+    breaksByUser.set(b.userId, arr);
+  }
+
+  const sortedUsers = [...users].sort((a, b) => {
+    const aName = `${a.firstname ?? ""} ${a.lastname ?? ""}`.trim().toLowerCase();
+    const bName = `${b.firstname ?? ""} ${b.lastname ?? ""}`.trim().toLowerCase();
+    return aName.localeCompare(bName);
+  });
+
+  for (const user of sortedUsers) {
+    const userPointages = pointagesByUser.get(user.id) ?? [];
+    const userBreaks = breaksByUser.get(user.id) ?? [];
+
+    // Summary per user over the period: last entry/exit, total breaks, total duration
+    const lastPointage = userPointages[0] ?? null;
+
+    let breakStart = "-";
+    let breakEnd = "-";
+    let totalBreak = "-";
+
+    if (userBreaks.length > 0) {
+      const startTimes = userBreaks
+        .map((b) => b.startTime)
+        .filter((t): t is string => Boolean(t))
+        .sort();
+      const endTimes = userBreaks
+        .map((b) => b.endTime)
+        .filter((t): t is string => Boolean(t))
+        .sort();
+
+      if (startTimes.length > 0) {
+        breakStart = startTimes[0];
+      }
+      if (endTimes.length > 0) {
+        breakEnd = endTimes[endTimes.length - 1];
+      }
+
+      const totalMinutes = userBreaks.reduce((sum, b) => sum + (b.duration ?? 0), 0);
+      if (totalMinutes > 0) {
+        totalBreak = formatMinutesHuman(totalMinutes);
+      }
+    }
+
+    let workDuration = "-";
+    const totalWorkMinutes = userPointages.reduce((sum, p) => sum + (p.duration ?? 0), 0);
+    if (totalWorkMinutes > 0) {
+      workDuration = formatMinutesHuman(totalWorkMinutes);
+    }
+
+    const employeeNameRaw = `${user.firstname ?? ""} ${user.lastname ?? ""}`.trim() || "-";
+    const employeeName =
+      employeeNameRaw.length > 28 ? `${employeeNameRaw.slice(0, 27)}…` : employeeNameRaw;
+    const departmentRaw = user.department ?? "-";
+    const department =
+      departmentRaw.length > 20 ? `${departmentRaw.slice(0, 19)}…` : departmentRaw;
+    const entryTime = lastPointage?.entryTime ?? "-";
+    const exitTime = lastPointage?.exitTime ?? "-";
+
+    ensureSpace();
+    drawLine(employeeName, colX.name, y, 8);
+    drawLine(department, colX.dept, y, 8);
+    drawLine(entryTime, colX.entry, y, 8);
+    drawLine(exitTime, colX.exit, y, 8);
+    drawLine(breakStart, colX.breakStart, y, 8);
+    drawLine(breakEnd, colX.breakEnd, y, 8);
+    drawLine(totalBreak, colX.breakDuration, y, 8);
+    drawLine(workDuration, colX.workDuration, y, 8);
+    y -= lineHeight;
+  }
+
+  const pdfBytes = await pdfDoc.save();
+  return pdfBytes;
+}

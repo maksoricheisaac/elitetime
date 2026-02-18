@@ -14,7 +14,7 @@ const io = new Server(httpServer, {
 io.use(authenticateSocket);
 
 io.on("connection", (socket: AuthenticatedSocket) => {
-  console.log(`Client connecté: ${socket.id} (User: ${socket.username}, Role: ${socket.userRole})`);
+  console.log("Client connecté");
   
   // Joindre les salles selon le rôle
   joinRoleRooms(socket);
@@ -82,7 +82,7 @@ io.on("connection", (socket: AuthenticatedSocket) => {
   });
 
   socket.on("disconnect", (reason) => {
-    console.log(`Client déconnecté: ${socket.id} (${reason})`);
+    console.log(`Client déconnecté`);
     
     // Logger la déconnexion
     if (socket.userId) {

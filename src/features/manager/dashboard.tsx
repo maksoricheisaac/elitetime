@@ -151,7 +151,7 @@ export default function ManagerDashboardClient({ stats }: ManagerDashboardClient
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{managers}</div>
-            <p className="text-xs text-muted-foreground">Responsables d&apos;équipe</p>
+            <p className="text-xs text-muted-foreground">Responsables</p>
           </CardContent>
         </Card>
 

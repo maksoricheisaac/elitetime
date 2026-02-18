@@ -28,6 +28,7 @@ export async function getSystemSettings(): Promise<SystemSettings> {
         emailNotificationsEnabled: true,
         lateAlertsEnabled: true,
         pointageRemindersEnabled: true,
+        dailyReportMode: "YESTERDAY",
       },
     });
   }
