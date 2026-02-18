@@ -11,14 +11,21 @@ function resolveRange(searchParams?: { from?: string; to?: string }) {
   const fromParam = searchParams?.from;
   const toParam = searchParams?.to;
 
+  const parseLocal = (value: string) => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return new Date(`${value}T00:00:00`);
+    }
+    return new Date(value);
+  };
+
   const today = new Date();
   const defaultFrom = new Date();
   defaultFrom.setDate(today.getDate() - 30);
   defaultFrom.setHours(0, 0, 0, 0);
   today.setHours(23, 59, 59, 999);
 
-  const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
-  const toDate = toParam ? new Date(toParam) : today;
+  const fromDate = fromParam ? parseLocal(fromParam) : defaultFrom;
+  const toDate = toParam ? parseLocal(toParam) : today;
 
   fromDate.setHours(0, 0, 0, 0);
   toDate.setHours(23, 59, 59, 999);
@@ -40,6 +47,8 @@ export default async function AppPointagesPage({
 
   const user = auth.user;
 
+  const { fromDate, toDate } = resolveRange(await searchParams);
+
   // Employé : par défaut ne voit que ses propres pointages, sauf s'il a la permission view_team_pointages
   if (user.role === "employee") {
     const permissions = await getUserPermissions(user.id);
@@ -60,6 +69,7 @@ export default async function AppPointagesPage({
     const employeeWhere: Prisma.UserWhereInput = {
       role: "employee",
       status: "active",
+      hiddenFromLists: false,
     };
 
     if (canViewTeamPointages && user.department) {
@@ -76,8 +86,6 @@ export default async function AppPointagesPage({
     }
 
     const teamIds = employees.map((u) => u.id);
-
-    const { fromDate, toDate } = resolveRange(await searchParams);
 
     const pointages = await prisma.pointage.findMany({
       where: {
@@ -127,6 +135,7 @@ export default async function AppPointagesPage({
     where: {
       role: { in: ["employee", "team_lead"] },
       status: "active",
+      hiddenFromLists: false,
     },
     orderBy: { firstname: "asc" },
   });
@@ -138,14 +147,12 @@ export default async function AppPointagesPage({
   } else {
     const teamIds = employees.map((u) => u.id);
 
-    const since = new Date();
-    since.setDate(since.getDate() - 30);
-
     const pointages = await prisma.pointage.findMany({
       where: {
         userId: { in: teamIds },
         date: {
-          gte: since,
+          gte: fromDate,
+          lte: toDate,
         },
       },
       orderBy: { date: "desc" },
@@ -162,7 +169,8 @@ export default async function AppPointagesPage({
       where: {
         userId: { in: teamIds },
         date: {
-          gte: since,
+          gte: fromDate,
+          lte: toDate,
         },
       },
       orderBy: { date: "desc" },

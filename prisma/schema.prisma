@@ -16,6 +16,7 @@ model User {
   position           String?
   avatar             String?
   status             UserStatus          @default(active)
+  hiddenFromLists    Boolean             @default(false)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   firstname          String?
@@ -32,6 +33,14 @@ model User {
   userPermissions    UserPermission[]
 
   scheduledEmailJobRecipients ScheduledEmailJobRecipient[]
+}
+
+model HiddenUsername {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  hidden    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Pointage {
@@ -213,10 +222,14 @@ model ScheduledEmailJob {
 model ScheduledEmailJobRecipient {
   id        String             @id @default(cuid())
   jobId     String
-  userId    String
+  userId    String?
+  email     String?
 
   job       ScheduledEmailJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, userId])
+  @@unique([jobId, email])
 }
 
 enum ScheduledEmailType {

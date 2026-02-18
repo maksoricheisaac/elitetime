@@ -25,6 +25,7 @@ async function safeUpsertUser(
     firstname,
     lastname,
     status,
+    hiddenFromLists,
   }: {
     email: string | null;
     firstname: string | null;
@@ -32,6 +33,7 @@ async function safeUpsertUser(
     department: string | null;
     position: string | null;
     status: "active" | "inactive";
+    hiddenFromLists: boolean;
   }
 ) {
   // 1) On cherche l'utilisateur uniquement par username (clé métier)
@@ -47,6 +49,7 @@ async function safeUpsertUser(
         firstname: firstname ?? existingUser.firstname,
         lastname: lastname ?? existingUser.lastname,
         status,
+        hiddenFromLists: existingUser.hiddenFromLists || hiddenFromLists,
       },
     });
   }
@@ -70,6 +73,7 @@ async function safeUpsertUser(
       lastname,
       // On laisse department / position / role à leurs valeurs par défaut ou null
       status,
+      hiddenFromLists,
       avatar: null,
     },
   });
@@ -93,6 +97,12 @@ export async function syncEmployeesFromLdapCore(): Promise<LdapSyncResult> {
   const client = new Client({ url: LDAP_URL, timeout: 10000, connectTimeout: 5000 });
 
   try {
+    const hiddenRules = await prisma.hiddenUsername.findMany({
+      where: { hidden: true },
+      select: { username: true },
+    });
+    const hiddenUsernames = new Set(hiddenRules.map((r) => r.username.trim().toLowerCase()).filter(Boolean));
+
     console.log("[ldap-sync] Démarrage de la synchronisation des employés depuis l'AD...");
     await client.bind(LDAP_BIND_DN, LDAP_BIND_PWD);
 
@@ -129,6 +139,8 @@ export async function syncEmployeesFromLdapCore(): Promise<LdapSyncResult> {
 
       ldapUsernames.push(username);
 
+      const shouldBeHidden = hiddenUsernames.has(username.trim().toLowerCase());
+
       const ldapEmail = getLdapValue((entry as Record<string, unknown>)["mail"]);
       const rawFirstname = getLdapValue((entry as Record<string, unknown>)["givenName"]);
       const rawLastname = getLdapValue((entry as Record<string, unknown>)["sn"]);
@@ -149,8 +161,23 @@ export async function syncEmployeesFromLdapCore(): Promise<LdapSyncResult> {
       const uacNumber = rawUac != null ? Number(Array.isArray(rawUac) ? rawUac[0] : rawUac) : NaN;
       const status: "active" | "inactive" = !Number.isNaN(uacNumber) && (uacNumber & 2) === 2 ? "inactive" : "active";
 
-      await safeUpsertUser(username, { email: ldapEmail, firstname, lastname, department, position, status });
+      await safeUpsertUser(username, {
+        email: ldapEmail,
+        firstname,
+        lastname,
+        department,
+        position,
+        status,
+        hiddenFromLists: shouldBeHidden,
+      });
       syncedCount += 1;
+    }
+
+    if (hiddenUsernames.size > 0) {
+      await prisma.user.updateMany({
+        where: { username: { in: Array.from(hiddenUsernames) } },
+        data: { hiddenFromLists: true },
+      });
     }
 
     // Marquer les utilisateurs absents de LDAP comme deleted

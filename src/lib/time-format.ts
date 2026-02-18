@@ -22,3 +22,15 @@ export function formatMinutesHuman(totalMinutes: number): string {
 
   return `${hours}h${String(minutes).padStart(2, "0")}min`;
 }
+
+export function formatTimeToHHMM(value: string | null | undefined): string {
+  const v = (value ?? "").trim();
+  if (!v) return "";
+
+  const m = v.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return v;
+
+  const hh = String(Number(m[1])).padStart(2, "0");
+  const mm = m[2];
+  return `${hh}:${mm}`;
+}

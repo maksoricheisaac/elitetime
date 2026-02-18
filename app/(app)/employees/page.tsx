@@ -30,6 +30,7 @@ export default async function AppEmployeesPage({
       status: {
         not: 'deleted',
       },
+      hiddenFromLists: false,
     },
     orderBy: { firstname: 'asc' },
   });

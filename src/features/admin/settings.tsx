@@ -54,6 +54,7 @@ interface AdminSettingsClientProps {
       hour: number;
       minute: number;
       recipientUserIds: string[];
+      recipientEmails: string[];
     } | null;
     weekly: {
       id: string;
@@ -62,6 +63,7 @@ interface AdminSettingsClientProps {
       minute: number;
       weekday: number;
       recipientUserIds: string[];
+      recipientEmails: string[];
     } | null;
   };
 }
@@ -93,6 +95,16 @@ export default function AdminSettingsClient({ initialSettings, emailScheduling }
   const [weeklyRecipientIds, setWeeklyRecipientIds] = useState<Set<string>>(
     new Set(emailScheduling.weekly?.recipientUserIds ?? []),
   );
+
+  const [dailyRecipientEmails, setDailyRecipientEmails] = useState<Set<string>>(
+    new Set((emailScheduling.daily?.recipientEmails ?? []).map((v) => v.trim().toLowerCase()).filter(Boolean)),
+  );
+  const [weeklyRecipientEmails, setWeeklyRecipientEmails] = useState<Set<string>>(
+    new Set((emailScheduling.weekly?.recipientEmails ?? []).map((v) => v.trim().toLowerCase()).filter(Boolean)),
+  );
+
+  const [dailyEmailInput, setDailyEmailInput] = useState<string>("");
+  const [weeklyEmailInput, setWeeklyEmailInput] = useState<string>("");
 
   const eligibleUsers = useMemo(() => emailScheduling.eligibleUsers ?? [], [emailScheduling.eligibleUsers]);
 
@@ -166,12 +178,14 @@ export default function AdminSettingsClient({ initialSettings, emailScheduling }
               hour: dailyHm.hour,
               minute: dailyHm.minute,
               recipientUserIds: Array.from(dailyRecipientIds),
+              recipientEmails: Array.from(dailyRecipientEmails),
             },
             weekly: {
               hour: weeklyHm.hour,
               minute: weeklyHm.minute,
               weekday: weeklyWeekday,
               recipientUserIds: Array.from(weeklyRecipientIds),
+              recipientEmails: Array.from(weeklyRecipientEmails),
             },
           });
           showSuccess("Paramètres email enregistrés");
@@ -180,6 +194,41 @@ export default function AdminSettingsClient({ initialSettings, emailScheduling }
         }
       });
     })();
+  };
+
+  const addExternalEmail = (scope: "daily" | "weekly") => {
+    const raw = (scope === "daily" ? dailyEmailInput : weeklyEmailInput).trim().toLowerCase();
+    const parsed = z.string().email().safeParse(raw);
+    if (!parsed.success) {
+      showError("Email invalide.");
+      return;
+    }
+
+    if (scope === "daily") {
+      setDailyRecipientEmails((prev) => new Set(prev).add(raw));
+      setDailyEmailInput("");
+      return;
+    }
+
+    setWeeklyRecipientEmails((prev) => new Set(prev).add(raw));
+    setWeeklyEmailInput("");
+  };
+
+  const removeExternalEmail = (scope: "daily" | "weekly", email: string) => {
+    if (scope === "daily") {
+      setDailyRecipientEmails((prev) => {
+        const next = new Set(prev);
+        next.delete(email);
+        return next;
+      });
+      return;
+    }
+
+    setWeeklyRecipientEmails((prev) => {
+      const next = new Set(prev);
+      next.delete(email);
+      return next;
+    });
   };
 
   const weekdayOptions = useMemo(
@@ -783,6 +832,50 @@ export default function AdminSettingsClient({ initialSettings, emailScheduling }
                       </ScrollArea>
                     )}
                   </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-base">Destinataires externes</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="email@exemple.com"
+                        value={dailyEmailInput}
+                        onChange={(e) => setDailyEmailInput(e.target.value)}
+                        disabled={isPending}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => addExternalEmail("daily")}
+                        disabled={isPending}
+                        className="shrink-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {dailyRecipientEmails.size > 0 ? (
+                      <div className="rounded-md border p-2 space-y-2">
+                        {Array.from(dailyRecipientEmails)
+                          .sort()
+                          .map((email) => (
+                            <div key={`daily-ext-${email}`} className="flex items-center justify-between gap-2">
+                              <div className="text-sm truncate">{email}</div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeExternalEmail("daily", email)}
+                                disabled={isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucun email externe.</p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="rounded-lg border p-4 space-y-4">
@@ -855,6 +948,50 @@ export default function AdminSettingsClient({ initialSettings, emailScheduling }
                           })}
                         </div>
                       </ScrollArea>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-base">Destinataires externes</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="email@exemple.com"
+                        value={weeklyEmailInput}
+                        onChange={(e) => setWeeklyEmailInput(e.target.value)}
+                        disabled={isPending}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => addExternalEmail("weekly")}
+                        disabled={isPending}
+                        className="shrink-0"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    {weeklyRecipientEmails.size > 0 ? (
+                      <div className="rounded-md border p-2 space-y-2">
+                        {Array.from(weeklyRecipientEmails)
+                          .sort()
+                          .map((email) => (
+                            <div key={`weekly-ext-${email}`} className="flex items-center justify-between gap-2">
+                              <div className="text-sm truncate">{email}</div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeExternalEmail("weekly", email)}
+                                disabled={isPending}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">Aucun email externe.</p>
                     )}
                   </div>
                 </div>

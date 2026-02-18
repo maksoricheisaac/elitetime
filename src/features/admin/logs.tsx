@@ -81,6 +81,13 @@ export default function LogsClient({ logs, employees }: LogsClientProps) {
   const pageSize = 10;
   const searchParams = useSearchParams();
 
+  const toDateParam = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
   const { from, to } = useMemo(() => {
     const fromParam = searchParams?.get("from") ?? undefined;
     const toParam = searchParams?.get("to") ?? undefined;
@@ -138,6 +145,31 @@ export default function LogsClient({ logs, employees }: LogsClientProps) {
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedLogs = filteredLogs.slice(startIndex, startIndex + pageSize);
 
+  const handlePrint = async () => {
+    if (filteredLogs.length === 0) return;
+
+    try {
+      const fromParam = toDateParam(from);
+      const toParam = toDateParam(to);
+      const url = `/api/reports/logs?from=${encodeURIComponent(fromParam)}&to=${encodeURIComponent(toParam)}&limit=10000`;
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `rapport_logs_${fromParam}_${toParam}.pdf`;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
   const getTypeBadge = (type: string) => {
     const variants: Record<string, "default" | "secondary" | "outline"> = {
       auth: "default",
@@ -169,7 +201,7 @@ export default function LogsClient({ logs, employees }: LogsClientProps) {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" suppressHydrationWarning>
       <div>
         <h1 className="text-3xl font-bold">Logs & Activité</h1>
         <p className="text-muted-foreground">Historique des actions et événements système</p>
@@ -288,7 +320,7 @@ export default function LogsClient({ logs, employees }: LogsClientProps) {
               variant="outline"
               size="sm"
               className="cursor-pointer"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               disabled={filteredLogs.length === 0}
             >
               <Printer className="mr-2 h-4 w-4" />

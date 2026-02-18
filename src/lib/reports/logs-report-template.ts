@@ -1,0 +1,416 @@
+export type LogsReportRow = {
+  userLabel: string;
+  typeLabel: string;
+  action: string;
+  details: string;
+  timestampLabel: string;
+};
+
+export interface LogsReportTemplateInput {
+  periodLabel: string;
+  generatedAtLabel: string;
+  rows: LogsReportRow[];
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function cell(value: string | null | undefined): string {
+  const v = (value ?? "").trim();
+  return v ? escapeHtml(v) : "—";
+}
+
+export function renderLogsReportHtml(input: LogsReportTemplateInput): string {
+  const rowsHtml =
+    input.rows.length > 0
+      ? input.rows
+          .map(
+            (r) => `
+              <tr>
+                <td class="col-user">${cell(r.userLabel)}</td>
+                <td class="col-type">${cell(r.typeLabel)}</td>
+                <td class="col-action">${cell(r.action)}</td>
+                <td class="col-details">${cell(r.details)}</td>
+                <td class="col-date">${cell(r.timestampLabel)}</td>
+              </tr>`,
+          )
+          .join("")
+      : `
+          <tr>
+            <td class="empty" colspan="5">Aucune donnée disponible pour cette période.</td>
+          </tr>`;
+
+  return `<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rapport des logs</title>
+    <style>
+      @page {
+        size: A4 landscape;
+        margin: 12mm;
+      }
+
+      :root {
+        --bg: #ffffff;
+        --panel: #ffffff;
+
+        --text: #0f172a;
+        --muted: rgba(15, 23, 42, 0.65);
+
+        --blue: #2f6bff;
+        --blue-2: #1f4ed8;
+
+        --border: rgba(15, 23, 42, 0.14);
+        --border-strong: rgba(15, 23, 42, 0.22);
+
+        --shadow: 0 12px 30px rgba(15, 23, 42, 0.10);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial,
+          "Apple Color Emoji", "Segoe UI Emoji";
+        background: var(--bg);
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+
+      .page {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+      }
+
+      .container {
+        width: 100%;
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+
+      .header {
+        display: grid;
+        grid-template-columns: 260px 1fr 220px;
+        gap: 12px;
+        align-items: center;
+        padding: 16px 18px;
+        border: 1px solid var(--border);
+        background: var(--panel);
+        border-radius: 14px;
+        box-shadow: var(--shadow);
+      }
+
+      .brand {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .logo {
+        width: 52px;
+        height: 52px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(
+            18px 18px at 30% 30%,
+            rgba(255, 255, 255, 0.35),
+            transparent 60%
+          ),
+          linear-gradient(180deg, rgba(47, 107, 255, 1), rgba(31, 78, 216, 1));
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        position: relative;
+        overflow: hidden;
+      }
+
+      .logo svg {
+        width: 30px;
+        height: 30px;
+        filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.35));
+      }
+
+      .brand-text {
+        display: flex;
+        flex-direction: column;
+        line-height: 1.05;
+      }
+
+      .brand-text .name {
+        font-weight: 800;
+        letter-spacing: 0.2px;
+        font-size: 16px;
+      }
+
+      .brand-text .subtitle {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.2px;
+      }
+
+      .title-wrap {
+        text-align: center;
+      }
+
+      .title {
+        font-weight: 900;
+        letter-spacing: 1.6px;
+        font-size: 18px;
+        text-transform: uppercase;
+        display: inline-block;
+        padding-bottom: 6px;
+        border-bottom: 2px solid rgba(15, 23, 42, 0.22);
+      }
+
+      .meta {
+        text-align: right;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .meta .label {
+        font-size: 11px;
+        color: var(--muted);
+        letter-spacing: 0.3px;
+        text-transform: uppercase;
+      }
+
+      .meta .value {
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+      }
+
+      .meta .chip {
+        align-self: flex-end;
+        font-size: 11px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border-strong);
+        background: rgba(47, 107, 255, 0.12);
+        color: rgba(15, 23, 42, 0.92);
+        letter-spacing: 0.2px;
+      }
+
+      .card {
+        border: 1px solid var(--border);
+        background: var(--panel);
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: var(--shadow);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      thead {
+        display: table-header-group;
+      }
+
+      tfoot {
+        display: table-footer-group;
+      }
+
+      thead th {
+        background: linear-gradient(180deg, var(--blue), var(--blue-2));
+        color: #ffffff;
+        font-weight: 800;
+        font-size: 12px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        padding: 12px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.22);
+        border-right: 1px solid rgba(255, 255, 255, 0.18);
+      }
+
+      thead th:last-child {
+        border-right: none;
+      }
+
+      tbody td {
+        padding: 12px 10px;
+        border-top: 1px solid rgba(15, 23, 42, 0.10);
+        border-right: 1px solid rgba(15, 23, 42, 0.10);
+        font-size: 12.5px;
+        color: rgba(15, 23, 42, 0.92);
+        vertical-align: middle;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      tr {
+        page-break-inside: avoid;
+      }
+
+      tbody tr:nth-child(odd) td {
+        background: rgba(15, 23, 42, 0.02);
+      }
+
+      tbody tr:nth-child(even) td {
+        background: rgba(15, 23, 42, 0.01);
+      }
+
+      tbody td:last-child {
+        border-right: none;
+      }
+
+      .col-user {
+        width: 16%;
+        text-align: left;
+        font-weight: 750;
+      }
+
+      .col-type {
+        width: 10%;
+        text-align: center;
+        font-weight: 750;
+        color: rgba(15, 23, 42, 0.75);
+      }
+
+      .col-action {
+        width: 20%;
+        text-align: left;
+      }
+
+      .col-details {
+        width: 38%;
+        text-align: left;
+      }
+
+      td.col-details {
+        white-space: normal;
+        word-break: break-word;
+        overflow: visible;
+        text-overflow: initial;
+      }
+
+      .col-date {
+        width: 16%;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.2px;
+        color: rgba(15, 23, 42, 0.75);
+      }
+
+      .empty {
+        padding: 18px;
+        text-align: center;
+        color: rgba(15, 23, 42, 0.65);
+        font-size: 12.5px;
+      }
+
+      .footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 10px 4px 0 4px;
+        color: rgba(15, 23, 42, 0.55);
+        font-size: 11px;
+      }
+
+      .footer .right {
+        text-align: right;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="page">
+      <div class="container">
+        <header class="header">
+          <div class="brand">
+            <div class="logo" aria-label="Elite Time">
+              <svg viewBox="0 0 24 24" fill="none" role="img" aria-hidden="true">
+                <path
+                  d="M12 22a10 10 0 1 0-10-10 10 10 0 0 0 10 10Z"
+                  stroke="rgba(255,255,255,0.92)"
+                  stroke-width="1.6"
+                />
+                <path
+                  d="M12 6v6l4 2"
+                  stroke="rgba(255,255,255,0.92)"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M12 3.2v1.6"
+                  stroke="rgba(255,255,255,0.65)"
+                  stroke-width="1.4"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </div>
+            <div class="brand-text">
+              <div class="name">Elite Time</div>
+              <div class="subtitle">Rapport RH</div>
+            </div>
+          </div>
+
+          <div class="title-wrap">
+            <div class="title">RAPPORT DES LOGS</div>
+          </div>
+
+          <div class="meta">
+            <div>
+              <div class="label">Période</div>
+              <div class="value">${escapeHtml(input.periodLabel)}</div>
+            </div>
+            <div class="chip">A4 · Landscape</div>
+          </div>
+        </header>
+
+        <section class="card">
+          <table>
+            <thead>
+              <tr>
+                <th class="col-user">Utilisateur</th>
+                <th class="col-type">Type</th>
+                <th class="col-action">Action</th>
+                <th class="col-details">Détails</th>
+                <th class="col-date">Date &amp; heure</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+        </section>
+
+        <div class="footer">
+          <div class="left">Elite Time · Rapport officiel RH</div>
+          <div class="right">Généré le ${escapeHtml(input.generatedAtLabel)}</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}

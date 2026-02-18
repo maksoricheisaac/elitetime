@@ -14,7 +14,6 @@ import type { User, Pointage, Break as BreakModel } from "@/generated/prisma/cli
 import { DataTable } from "@/components/ui/data-table";
 import type { ColumnDef } from "@tanstack/react-table";
 import { formatMinutesHuman } from "@/lib/time-format";
-import type { PDFPage } from "pdf-lib";
 
 interface ManagerReportsClientProps {
   team: User[];
@@ -141,6 +140,13 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const searchParams = useSearchParams();
+
+  const toDateParam = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
 
   const { from, to, rangeLabel } = useMemo(() => {
     const fromParam = searchParams?.get("from") ?? undefined;
@@ -315,266 +321,31 @@ export default function ManagerReportsClient({ team, pointages, breaks, overtime
 
     setIsExportingPdf(true);
 
-  const periodLabel = rangeLabel || "Période sélectionnée";
-  const departmentLabel =
-    filterDepartment === "all"
-      ? "Tous les départements"
-      : `Département : ${filterDepartment}`;
-  const employeesLabel = `${filteredStats.length} employé(s)`;
-  const summaryLabel = `Total heures : ${formatMinutesHuman(totalTeamHours * 60)}  |  Moyenne : ${formatMinutesHuman(avgHours * 60)}  |  Heures sup : ${formatMinutesHuman(totalOvertime * 60)}`;
+    try {
+      const fromParam = toDateParam(from);
+      const toParam = toDateParam(to);
+      const url = `/api/reports/pointages?from=${encodeURIComponent(fromParam)}&to=${encodeURIComponent(toParam)}`;
 
-try {
-  const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
+      const res = await fetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
-  const pdfDoc = await PDFDocument.create();
-  const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = `rapport_pointages_${fromParam}_${toParam}.pdf`;
+      a.click();
+      URL.revokeObjectURL(objectUrl);
 
-  /* ==============================
-     CONSTANTES GLOBALES
-  ============================== */
-  const PAGE_WIDTH = 595;
-  const PAGE_HEIGHT = 842;
-  const MARGIN = 40;
-  const ROW_HEIGHT = 20;
-  const FOOTER_HEIGHT = 40;
-
-  const COLORS = {
-    headerMain: rgb(0.11, 0.42, 0.76),
-    headerSecondary: rgb(0.06, 0.32, 0.58),
-    textDark: rgb(0.15, 0.15, 0.2),
-    textLight: rgb(1, 1, 1),
-    muted: rgb(0.4, 0.45, 0.6),
-    tableHeaderBg: rgb(0.06, 0.32, 0.58),
-    tableBorder: rgb(0.75, 0.75, 0.8),
-    altRow: rgb(0.96, 0.98, 1),
-    late: rgb(0.8, 0.2, 0.2),
-    absence: rgb(0.85, 0.45, 0.2),
-    overtime: rgb(0.1, 0.55, 0.32),
-    footer: rgb(0.06, 0.32, 0.58),
-  };
-
-  let pageNumber = 0;
-  const generatedAt = new Date().toLocaleString();
-
-  /* ==============================
-     HEADER COMMUN
-  ============================== */
-  const drawHeader = (page: PDFPage, title: string, subtitle?: string) => {
-    page.drawRectangle({
-      x: 0,
-      y: PAGE_HEIGHT - 120,
-      width: PAGE_WIDTH,
-      height: 120,
-      color: COLORS.headerMain,
-    });
-
-    page.drawRectangle({
-      x: PAGE_WIDTH * 0.45,
-      y: PAGE_HEIGHT - 120,
-      width: PAGE_WIDTH * 0.55,
-      height: 80,
-      color: COLORS.headerSecondary,
-    });
-
-    page.drawText(title, {
-      x: MARGIN,
-      y: PAGE_HEIGHT - 70,
-      size: 20,
-      font: fontBold,
-      color: COLORS.textLight,
-    });
-
-    if (subtitle) {
-      page.drawText(subtitle, {
-        x: MARGIN,
-        y: PAGE_HEIGHT - 92,
-        size: 11,
-        font: fontRegular,
-        color: rgb(0.9, 0.9, 1),
-      });
-    }
-  };
-
-  /* ==============================
-     FOOTER COMMUN
-  ============================== */
-  const drawFooter = (page: PDFPage) => {
-    page.drawRectangle({
-      x: 0,
-      y: 0,
-      width: PAGE_WIDTH,
-      height: 28,
-      color: COLORS.footer,
-    });
-
-    page.drawText(`Généré le ${generatedAt}`, {
-      x: MARGIN,
-      y: 10,
-      size: 9,
-      font: fontRegular,
-      color: COLORS.textLight,
-    });
-
-    const label = `Page ${pageNumber}`;
-    const w = fontRegular.widthOfTextAtSize(label, 9);
-
-    page.drawText(label, {
-      x: PAGE_WIDTH - MARGIN - w,
-      y: 10,
-      size: 9,
-      font: fontRegular,
-      color: COLORS.textLight,
-    });
-  };
-
-  /* ======================================================
-     PAGES  TABLEAU D48TAILL48 PAR EMPLOY c9
-  ====================================================== */
-
-  const createEmployeePage = () => {
-    const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-    pageNumber++;
-
-    drawHeader(
-      page,
-      "Rapport équipe - Détail par employé",
-      `Période : ${periodLabel} | ${departmentLabel}`,
-    );
-    drawFooter(page);
-
-    const tableTop = PAGE_HEIGHT - 150;
-    const tableWidth = PAGE_WIDTH - MARGIN * 2;
-
-    const contextTop = tableTop + 20;
-
-    page.drawText(employeesLabel, {
-      x: MARGIN,
-      y: contextTop,
-      size: 9,
-      font: fontRegular,
-      color: COLORS.muted,
-    });
-
-    page.drawText(summaryLabel, {
-      x: MARGIN,
-      y: contextTop - 12,
-      size: 9,
-      font: fontRegular,
-      color: COLORS.muted,
-    });
-
-    const columns = [
-      { label: "Employé", width: tableWidth * 0.25 },
-      { label: "Département", width: tableWidth * 0.18 },
-      { label: "Heures", width: tableWidth * 0.1 },
-      { label: "Pause", width: tableWidth * 0.1 },
-      { label: "Retards", width: tableWidth * 0.1 },
-      { label: "Absences", width: tableWidth * 0.12 },
-      { label: "Heures sup", width: tableWidth * 0.15 },
-    ];
-
-    let x = MARGIN;
-
-    page.drawRectangle({
-      x: MARGIN,
-      y: tableTop - ROW_HEIGHT,
-      width: tableWidth,
-      height: ROW_HEIGHT,
-      color: COLORS.tableHeaderBg,
-    });
-
-    columns.forEach((c) => {
-      page.drawText(c.label, {
-        x: x + 6,
-        y: tableTop - 14,
-        size: 10,
-        font: fontBold,
-        color: COLORS.textLight,
-      });
-      x += c.width;
-    });
-
-    return {
-      page,
-      y: tableTop - ROW_HEIGHT,
-      columns,
-    };
-  };
-
-  let { page, y, columns } = createEmployeePage();
-
-  filteredStats.forEach((s, index) => {
-    if (y < FOOTER_HEIGHT + ROW_HEIGHT) {
-      ({ page, y, columns } = createEmployeePage());
-    }
-
-    let x = MARGIN;
-
-    if (index % 2 === 1) {
-      page.drawRectangle({
-        x: MARGIN,
-        y: y - ROW_HEIGHT,
-        width: PAGE_WIDTH - MARGIN * 2,
-        height: ROW_HEIGHT,
-        color: COLORS.altRow,
-      });
-    }
-
-    const values = [
-      `${s.employee.firstname} ${s.employee.lastname}`,
-      s.employee.department || "-",
-      `${s.totalHours}h`,
-      `${Math.round(s.totalBreakMinutes / 60)}h`,
-      String(s.lateCount),
-      String(s.absenceCount),
-      `${s.overtimeHours}h`,
-    ];
-
-    values.forEach((v, i) => {
-      page.drawText(v, {
-        x: x + 6,
-        y: y - 14,
-        size: 10,
-        font: fontRegular,
-        color:
-          i === 4 && s.lateCount > 0
-            ? COLORS.late
-            : i === 5 && s.absenceCount > 0
-            ? COLORS.absence
-            : i === 6 && s.overtimeHours > 0
-            ? COLORS.overtime
-            : COLORS.textDark,
-      });
-      x += columns[i].width;
-    });
-
-    y -= ROW_HEIGHT;
-  });
-
-  /* ==============================
-     EXPORT
-  ============================== */
-  const pdfBytes = await pdfDoc.save();
-  const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "feuille-temps-elitetime.pdf";
-  a.click();
-
-  URL.revokeObjectURL(url);
-  showSuccess("Rapport PDF téléchargé avec succès");
-} catch (error) {
-  console.error(error);
+      showSuccess("Rapport PDF téléchargé avec succès");
+    } catch (error) {
+      console.error(error);
       showError("Une erreur est survenue lors de la génération du PDF.");
     } finally {
       setIsExportingPdf(false);
     }
-
-
-    
   };
 
   return (

@@ -74,6 +74,7 @@ export default async function AppReportsPage({
       const whereEmployees: Prisma.UserWhereInput = {
         role: 'employee',
         status: 'active',
+        hiddenFromLists: false,
       };
 
       if (user.department) {
@@ -147,6 +148,7 @@ export default async function AppReportsPage({
       where: {
         role: 'employee',
         status: 'active',
+        hiddenFromLists: false,
       },
       orderBy: { firstname: 'asc' },
     });

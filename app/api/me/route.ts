@@ -27,6 +27,7 @@ export async function GET() {
             position: true,
             avatar: true,
             status: true,
+            hiddenFromLists: true,
             createdAt: true,
             updatedAt: true,
             teamLeadId: true,

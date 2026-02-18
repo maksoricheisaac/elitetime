@@ -24,6 +24,7 @@ export async function managerGetReportsData(managerId: string): Promise<ManagerR
       department: manager.department,
       role: "employee",
       status: "active",
+      hiddenFromLists: false,
     },
     orderBy: { firstname: "asc" },
   });
@@ -84,6 +85,7 @@ export async function teamLeadGetReportsData(teamLeadId: string): Promise<Manage
       department: teamLead.department,
       role: "employee",
       status: "active",
+      hiddenFromLists: false,
     },
     orderBy: { firstname: "asc" },
   });

@@ -31,6 +31,44 @@ type TodayRow = {
   breaks: Break[];
 };
 
+type TableRow = TodayRow | AverageRow;
+
+type AverageRow = {
+  employee: User;
+  avgEntryTime: string;
+  avgExitTime: string;
+  avgBreakStart: string;
+  avgBreakEnd: string;
+  avgBreakDurationMinutes: number;
+  avgWorkDurationMinutes: number;
+};
+
+function isSameDay(a: Date, b: Date) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+function parseTimeToMinutes(value?: string | null): number | null {
+  if (!value) return null;
+  const m = value.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (Number.isNaN(h) || Number.isNaN(min)) return null;
+  return h * 60 + min;
+}
+
+function formatMinutesToTime(value: number | null): string {
+  if (value == null) return "-";
+  const rounded = Math.round(value);
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
 async function logReportExport(reportType: string, details?: string) {
   try {
     await fetch("/api/activity/report-export", {
@@ -55,9 +93,16 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
 
   const searchParams = useSearchParams();
 
-  const { from, days, rangeLabel } = useMemo(() => {
+  const { from, to, days, rangeLabel, isSingleDay } = useMemo(() => {
     const fromParam = searchParams?.get("from") ?? undefined;
     const toParam = searchParams?.get("to") ?? undefined;
+
+    const parseLocal = (value: string) => {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        return new Date(`${value}T00:00:00`);
+      }
+      return new Date(value);
+    };
 
     const today = new Date();
     const defaultFrom = new Date();
@@ -65,8 +110,8 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
     defaultFrom.setHours(0, 0, 0, 0);
     today.setHours(23, 59, 59, 999);
 
-    const fromDate = fromParam ? new Date(fromParam) : defaultFrom;
-    const toDate = toParam ? new Date(toParam) : today;
+    const fromDate = fromParam ? parseLocal(fromParam) : defaultFrom;
+    const toDate = toParam ? parseLocal(toParam) : today;
 
     fromDate.setHours(0, 0, 0, 0);
     toDate.setHours(23, 59, 59, 999);
@@ -88,38 +133,38 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       label = `${fromLabel} – ${toLabel}`;
     }
 
-    return { from: fromDate, days: Math.max(1, computedDays), rangeLabel: label };
+    return {
+      from: fromDate,
+      to: toDate,
+      days: Math.max(1, computedDays),
+      rangeLabel: label,
+      isSingleDay: isSameDay(fromDate, toDate),
+    };
   }, [searchParams]);
 
-  const todayKey = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d.toDateString();
-  }, []);
-
-  const todayPointages = useMemo(
+  const selectedPointages = useMemo(
     () =>
       pointages.filter((p) => {
         const d = new Date(p.date as unknown as string);
-        return d.toDateString() === todayKey;
+        return d >= from && d <= to;
       }),
-    [pointages, todayKey]
+    [pointages, from, to]
   );
 
   // On considère un employé "présent" s'il a au moins un pointage pour la journée,
   // ce qui aligne la synthèse et les filtres avec la logique des graphiques.
   const presentTodayIds = useMemo(
-    () => new Set(todayPointages.map((p) => p.userId)),
-    [todayPointages]
+    () => new Set(selectedPointages.map((p) => p.userId)),
+    [selectedPointages]
   );
 
-  const todayBreaks = useMemo(
+  const selectedBreaks = useMemo(
     () =>
       breaks.filter((b) => {
         const d = new Date(b.date as unknown as string);
-        return d.toDateString() === todayKey;
+        return d >= from && d <= to;
       }),
-    [breaks, todayKey]
+    [breaks, from, to]
   );
 
   const onLeaveTodayIds = useMemo(() => {
@@ -207,25 +252,81 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
     });
   }, [team, presentTodayIds, searchTerm, statusFilter, departmentFilter]);
 
-  const todayRows = useMemo(
-    () =>
-      filteredTeam.map((employee) => {
-        const employeeTodayPointages = todayPointages
+  const tableRows = useMemo(() => {
+    if (isSingleDay) {
+      return filteredTeam.map((employee) => {
+        const employeePointages = selectedPointages
           .filter((p) => p.userId === employee.id)
           .sort(
             (a, b) =>
               new Date(b.date as unknown as string).getTime() -
-              new Date(a.date as unknown as string).getTime()
+              new Date(a.date as unknown as string).getTime(),
           );
 
-        const lastPointage = employeeTodayPointages[0] ?? null;
+        const lastPointage = employeePointages[0] ?? null;
+        const employeeBreaks = selectedBreaks.filter((b) => b.userId === employee.id);
+        return { employee, pointage: lastPointage, breaks: employeeBreaks } satisfies TodayRow;
+      });
+    }
 
-        const employeeTodayBreaks = todayBreaks.filter((b) => b.userId === employee.id);
+    return filteredTeam.map((employee) => {
+      const employeePointages = selectedPointages.filter((p) => p.userId === employee.id);
+      const employeeBreaks = selectedBreaks.filter((b) => b.userId === employee.id);
 
-        return { employee, pointage: lastPointage, breaks: employeeTodayBreaks };
-      }),
-    [filteredTeam, todayPointages, todayBreaks]
-  );
+      const entryMinutes = employeePointages
+        .map((p) => parseTimeToMinutes(p.entryTime))
+        .filter((v): v is number => v != null);
+      const exitMinutes = employeePointages
+        .map((p) => parseTimeToMinutes(p.exitTime))
+        .filter((v): v is number => v != null);
+
+      const avgEntry = entryMinutes.length > 0 ? entryMinutes.reduce((a, b) => a + b, 0) / entryMinutes.length : null;
+      const avgExit = exitMinutes.length > 0 ? exitMinutes.reduce((a, b) => a + b, 0) / exitMinutes.length : null;
+
+      const breakStartMinutes = employeeBreaks
+        .map((b) => parseTimeToMinutes(b.startTime))
+        .filter((v): v is number => v != null);
+      const breakEndMinutes = employeeBreaks
+        .map((b) => parseTimeToMinutes(b.endTime))
+        .filter((v): v is number => v != null);
+
+      const avgBreakStart =
+        breakStartMinutes.length > 0
+          ? breakStartMinutes.reduce((a, b) => a + b, 0) / breakStartMinutes.length
+          : null;
+      const avgBreakEnd =
+        breakEndMinutes.length > 0
+          ? breakEndMinutes.reduce((a, b) => a + b, 0) / breakEndMinutes.length
+          : null;
+
+      const breakDurationMinutes = employeeBreaks
+        .map((b) => b.duration ?? 0)
+        .filter((v) => v > 0);
+      const workDurationMinutes = employeePointages
+        .map((p) => p.duration ?? 0)
+        .filter((v) => v > 0);
+
+      const avgBreakDurationMinutes =
+        breakDurationMinutes.length > 0
+          ? breakDurationMinutes.reduce((a, b) => a + b, 0) / breakDurationMinutes.length
+          : 0;
+
+      const avgWorkDurationMinutes =
+        workDurationMinutes.length > 0
+          ? workDurationMinutes.reduce((a, b) => a + b, 0) / workDurationMinutes.length
+          : 0;
+
+      return {
+        employee,
+        avgEntryTime: formatMinutesToTime(avgEntry),
+        avgExitTime: formatMinutesToTime(avgExit),
+        avgBreakStart: formatMinutesToTime(avgBreakStart),
+        avgBreakEnd: formatMinutesToTime(avgBreakEnd),
+        avgBreakDurationMinutes,
+        avgWorkDurationMinutes,
+      } satisfies AverageRow;
+    });
+  }, [filteredTeam, isSingleDay, selectedBreaks, selectedPointages]);
 
   const totalEmployees = team.length;
   const presentCount = presentTodayIds.size;
@@ -233,23 +334,20 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
   const absentCount = Math.max(0, totalEmployees - presentCount - onLeaveCount);
 
   const handleExportPdf = async () => {
-    if (todayRows.length === 0) {
-      showInfo("Aucun pointage à exporter pour aujourd'hui.");
+    if (tableRows.length === 0) {
+      showInfo("Aucun pointage à exporter pour cette période.");
       return;
     }
 
     try {
       setIsExportingPdf(true);
 
-      const today = new Date();
-      const todayLabel = today.toLocaleDateString("fr-FR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      });
-      void logReportExport("TEAM_DAILY_POINTAGES_PDF", `Date: ${todayLabel}`);
-      const dateIso = today.toISOString().slice(0, 10);
-      const res = await fetch(`/api/reports/pointages?from=${encodeURIComponent(dateIso)}&to=${encodeURIComponent(dateIso)}`);
+      const fromIso = from.toISOString();
+      const toIso = to.toISOString();
+      void logReportExport("TEAM_DAILY_POINTAGES_PDF", `Période: ${rangeLabel}`);
+      const res = await fetch(
+        `/api/reports/pointages?from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}`,
+      );
       if (!res.ok) {
         throw new Error(`PDF download failed (${res.status})`);
       }
@@ -259,7 +357,7 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
 
       const link = document.createElement("a");
       link.href = url;
-      link.download = `pointages_${dateIso}.pdf`;
+      link.download = `pointages_${new Date().toISOString().slice(0, 10)}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -274,7 +372,8 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
     }
   };
 
-  const todayColumns: ColumnDef<TodayRow>[] = [
+  const columns = useMemo(() => {
+    const base: ColumnDef<TableRow>[] = [
     {
       accessorKey: "employee",
       header: () => <span>Employé</span>,
@@ -295,28 +394,46 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
     {
       accessorKey: "entryTime",
       header: () => <span>Entrée</span>,
-      cell: ({ row }) => <span>{row.original.pointage?.entryTime || "-"}</span>,
+      cell: ({ row }) =>
+        isSingleDay ? (
+          <span>{(row.original as TodayRow).pointage?.entryTime || "-"}</span>
+        ) : (
+          <span>{(row.original as AverageRow).avgEntryTime}</span>
+        ),
     },
     {
       accessorKey: "exitTime",
       header: () => <span>Sortie</span>,
-      cell: ({ row }) => <span>{row.original.pointage?.exitTime || "-"}</span>,
+      cell: ({ row }) =>
+        isSingleDay ? (
+          <span>{(row.original as TodayRow).pointage?.exitTime || "-"}</span>
+        ) : (
+          <span>{(row.original as AverageRow).avgExitTime}</span>
+        ),
     },
-    {
-      accessorKey: "lateReason",
-      header: () => <span>Motif</span>,
-      cell: ({ row }) => {
-        const reason = row.original.pointage?.lateReason;
-        if (!reason) return <span>-</span>;
-        const truncated = reason.length > 80 ? `${reason.slice(0, 77)}…` : reason;
-        return <span className="text-xs text-muted-foreground">{truncated}</span>;
-      },
-    },
+    ];
+
+    if (isSingleDay) {
+      base.push({
+        accessorKey: "lateReason",
+        header: () => <span>Motif</span>,
+        cell: ({ row }) => {
+          const reason = (row.original as TodayRow).pointage?.lateReason;
+          if (!reason) return <span>-</span>;
+          const truncated = reason.length > 80 ? `${reason.slice(0, 77)}…` : reason;
+          return <span className="text-xs text-muted-foreground">{truncated}</span>;
+        },
+      });
+    }
+
+    base.push(
     {
       id: "breakStart",
       header: () => <span>Début pause</span>,
       cell: ({ row }) => {
-        const employeeBreaks = row.original.breaks;
+        if (!isSingleDay) return <span>{(row.original as AverageRow).avgBreakStart}</span>;
+
+        const employeeBreaks = (row.original as TodayRow).breaks;
         if (!employeeBreaks || employeeBreaks.length === 0) {
           return <span>-</span>;
         }
@@ -332,7 +449,9 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       id: "breakEnd",
       header: () => <span>Fin pause</span>,
       cell: ({ row }) => {
-        const employeeBreaks = row.original.breaks;
+        if (!isSingleDay) return <span>{(row.original as AverageRow).avgBreakEnd}</span>;
+
+        const employeeBreaks = (row.original as TodayRow).breaks;
         if (!employeeBreaks || employeeBreaks.length === 0) {
           return <span>-</span>;
         }
@@ -348,7 +467,13 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       id: "breakDuration",
       header: () => <span>Durée pauses</span>,
       cell: ({ row }) => {
-        const employeeBreaks = row.original.breaks;
+        if (!isSingleDay) {
+          const value = (row.original as AverageRow).avgBreakDurationMinutes;
+          if (!value || value <= 0) return <span>-</span>;
+          return <span>{formatMinutesHuman(value)}</span>;
+        }
+
+        const employeeBreaks = (row.original as TodayRow).breaks;
         if (!employeeBreaks || employeeBreaks.length === 0) {
           return <span>-</span>;
         }
@@ -366,7 +491,13 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       accessorKey: "duration",
       header: () => <span>Durée</span>,
       cell: ({ row }) => {
-        const pointage = row.original.pointage;
+        if (!isSingleDay) {
+          const value = (row.original as AverageRow).avgWorkDurationMinutes;
+          if (!value || value <= 0) return <span>-</span>;
+          return <span>{formatMinutesHuman(value)}</span>;
+        }
+
+        const pointage = (row.original as TodayRow).pointage;
         if (!pointage || !pointage.duration || pointage.duration <= 0) {
           return <span>-</span>;
         }
@@ -383,7 +514,7 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
       id: "status",
       header: () => <span>Statut</span>,
       cell: ({ row }) => {
-        const pointage = row.original.pointage;
+        const pointage = isSingleDay ? (row.original as TodayRow).pointage : null;
         const employee = row.original.employee;
         const isOnLeave = onLeaveTodayIds.has(employee.id);
 
@@ -455,7 +586,10 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
         );
       },
     },
-  ];
+    );
+
+    return base;
+  }, [isSingleDay, onLeaveTodayIds]);
 
   return (
     <div className="space-y-6">
@@ -529,9 +663,11 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
 
       <Card>
         <CardHeader>
-          <CardTitle>Pointages du jour</CardTitle>
+          <CardTitle>{isSingleDay ? "Pointages du jour" : "Moyennes sur la période"}</CardTitle>
           <CardDescription>
-            Liste des pointages du jour pour tous les employés de l&apos;équipe
+            {isSingleDay
+              ? "Liste des pointages du jour pour tous les employés de l'équipe"
+              : "Synthèse moyenne des pointages sur la période sélectionnée"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -589,13 +725,13 @@ export default function ManagerPointagesClient({ team, pointages, absences, brea
               size="sm"
               className="cursor-pointer"
               onClick={handleExportPdf}
-              disabled={todayRows.length === 0 || isExportingPdf}
+              disabled={tableRows.length === 0 || isExportingPdf}
             >
               <Download className="mr-1.5 h-3.5 w-3.5" />
               <span>{isExportingPdf ? "Génération..." : "Exporter en PDF"}</span>
             </Button>
           </div>
-          <DataTable columns={todayColumns} data={todayRows} />
+          <DataTable columns={columns} data={tableRows} />
         </CardContent>
       </Card>
     </div>

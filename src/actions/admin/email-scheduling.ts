@@ -11,12 +11,14 @@ const UpdateEmailSchedulingSchema = z.object({
     hour: z.number().int().min(0).max(23),
     minute: z.number().int().min(0).max(59),
     recipientUserIds: z.array(z.string()).max(200),
+    recipientEmails: z.array(z.string().email()).max(200),
   }),
   weekly: z.object({
     hour: z.number().int().min(0).max(23),
     minute: z.number().int().min(0).max(59),
     weekday: WeekdaySchema,
     recipientUserIds: z.array(z.string()).max(200),
+    recipientEmails: z.array(z.string().email()).max(200),
   }),
 });
 
@@ -26,6 +28,7 @@ export async function adminGetEmailScheduling() {
   const eligibleUsers = await prisma.user.findMany({
     where: {
       status: "active",
+      hiddenFromLists: false,
       role: { in: ["admin", "manager"] },
       email: { not: null },
     },
@@ -56,7 +59,8 @@ export async function adminGetEmailScheduling() {
           enabled: dailyJob.enabled,
           hour: dailyJob.hour,
           minute: dailyJob.minute,
-          recipientUserIds: dailyJob.recipients.map((r) => r.userId),
+          recipientUserIds: dailyJob.recipients.map((r) => r.userId).filter((v): v is string => Boolean(v)),
+          recipientEmails: dailyJob.recipients.map((r) => r.email).filter((v): v is string => Boolean(v)),
         }
       : null,
     weekly: weeklyJob
@@ -66,7 +70,8 @@ export async function adminGetEmailScheduling() {
           hour: weeklyJob.hour,
           minute: weeklyJob.minute,
           weekday: weeklyJob.weekday ?? 1,
-          recipientUserIds: weeklyJob.recipients.map((r) => r.userId),
+          recipientUserIds: weeklyJob.recipients.map((r) => r.userId).filter((v): v is string => Boolean(v)),
+          recipientEmails: weeklyJob.recipients.map((r) => r.email).filter((v): v is string => Boolean(v)),
         }
       : null,
   };
@@ -81,6 +86,7 @@ export async function adminUpdateEmailScheduling(input: unknown) {
       await prisma.user.findMany({
         where: {
           status: "active",
+          hiddenFromLists: false,
           role: { in: ["admin", "manager"] },
           email: { not: null },
         },
@@ -91,6 +97,13 @@ export async function adminUpdateEmailScheduling(input: unknown) {
 
   const dailyRecipientIds = data.daily.recipientUserIds.filter((id) => eligibleIds.has(id));
   const weeklyRecipientIds = data.weekly.recipientUserIds.filter((id) => eligibleIds.has(id));
+
+  const dailyRecipientEmails = Array.from(
+    new Set(data.daily.recipientEmails.map((v) => v.trim().toLowerCase()).filter(Boolean)),
+  );
+  const weeklyRecipientEmails = Array.from(
+    new Set(data.weekly.recipientEmails.map((v) => v.trim().toLowerCase()).filter(Boolean)),
+  );
 
   const [dailyJob, weeklyJob] = await prisma.$transaction([
     prisma.scheduledEmailJob.upsert({
@@ -129,12 +142,18 @@ export async function adminUpdateEmailScheduling(input: unknown) {
   await prisma.$transaction([
     prisma.scheduledEmailJobRecipient.deleteMany({ where: { jobId: dailyJob.id } }),
     prisma.scheduledEmailJobRecipient.createMany({
-      data: dailyRecipientIds.map((userId) => ({ jobId: dailyJob.id, userId })),
+      data: [
+        ...dailyRecipientIds.map((userId) => ({ jobId: dailyJob.id, userId })),
+        ...dailyRecipientEmails.map((email) => ({ jobId: dailyJob.id, email })),
+      ],
       skipDuplicates: true,
     }),
     prisma.scheduledEmailJobRecipient.deleteMany({ where: { jobId: weeklyJob.id } }),
     prisma.scheduledEmailJobRecipient.createMany({
-      data: weeklyRecipientIds.map((userId) => ({ jobId: weeklyJob.id, userId })),
+      data: [
+        ...weeklyRecipientIds.map((userId) => ({ jobId: weeklyJob.id, userId })),
+        ...weeklyRecipientEmails.map((email) => ({ jobId: weeklyJob.id, email })),
+      ],
       skipDuplicates: true,
     }),
   ]);
@@ -151,6 +170,7 @@ export async function adminUpdateEmailScheduling(input: unknown) {
       hour: dailyJob.hour,
       minute: dailyJob.minute,
       recipientUserIds: dailyRecipientIds,
+      recipientEmails: dailyRecipientEmails,
     },
     weekly: {
       id: weeklyJob.id,
@@ -158,6 +178,7 @@ export async function adminUpdateEmailScheduling(input: unknown) {
       minute: weeklyJob.minute,
       weekday: weeklyJob.weekday ?? data.weekly.weekday,
       recipientUserIds: weeklyRecipientIds,
+      recipientEmails: weeklyRecipientEmails,
     },
   };
 }

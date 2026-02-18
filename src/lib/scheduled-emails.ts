@@ -2,8 +2,8 @@ import prisma from "@/lib/prisma";
 import { sendEmail } from "@/lib/email";
 import { renderPointagesReportHtml } from "@/lib/reports/pointages-report-template";
 import { renderPdfFromHtml } from "@/lib/reports/html-to-pdf";
+import { formatMinutesHuman, formatTimeToHHMM } from "@/lib/time-format";
 import type { DailyReportMode } from "@/generated/prisma/client";
-import { formatMinutesHuman } from "@/lib/time-format";
 
 function getDailyPeriod(mode: DailyReportMode): { from: Date; to: Date; label: string } {
   const now = new Date();
@@ -73,8 +73,23 @@ export async function runScheduledEmailJob(jobId: string): Promise<void> {
     }
   }
 
-  const recipients = job.recipients.map((r) => r.user).filter((u) => Boolean(u?.email));
-  const to = recipients.map((u) => u.email as string).filter(Boolean);
+  const to = Array.from(
+    new Set(
+      [
+        ...job.recipients
+          .filter((r) => !r.user || r.user.hiddenFromLists !== true)
+          .map((r) => r.user?.email)
+          .filter((v): v is string => Boolean(v))
+          .map((v) => v.trim().toLowerCase())
+          .filter(Boolean),
+        ...job.recipients
+          .map((r) => r.email)
+          .filter((v): v is string => Boolean(v))
+          .map((v) => v.trim().toLowerCase())
+          .filter(Boolean),
+      ],
+    ),
+  );
   if (to.length === 0) {
     console.log(`[scheduled-emails] job ${job.id} has no recipients with email, skipping`);
     return;
@@ -105,6 +120,7 @@ export async function runScheduledEmailJob(jobId: string): Promise<void> {
   const users = await prisma.user.findMany({
     where: {
       status: "active",
+      hiddenFromLists: false,
     },
   });
 
@@ -190,10 +206,10 @@ export async function runScheduledEmailJob(jobId: string): Promise<void> {
     return {
       fullName,
       position,
-      checkIn: times?.entry ?? "",
-      checkOut: times?.exit ?? "",
-      breakStart: startTimes[0] ?? "",
-      breakEnd: endTimes.length > 0 ? endTimes[endTimes.length - 1] : "",
+      checkIn: formatTimeToHHMM(times?.entry) || "",
+      checkOut: formatTimeToHHMM(times?.exit) || "",
+      breakStart: formatTimeToHHMM(startTimes[0] ?? "") || "",
+      breakEnd: formatTimeToHHMM(endTimes.length > 0 ? endTimes[endTimes.length - 1] : "") || "",
       breakDuration: totalBreakMinutes > 0 ? formatMinutesHuman(totalBreakMinutes) : "",
       workDuration: totalWorkMinutes > 0 ? formatMinutesHuman(totalWorkMinutes) : "",
     };
